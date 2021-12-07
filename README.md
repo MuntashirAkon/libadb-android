@@ -86,16 +86,16 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
 Then, you can simply connect to ADB by invoking `AdbConnectionManager.getInstance().connect(host, port)`.
 
 ### Wireless Debugging
-Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging require an extra step of
+Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging requires an extra step of
 _pairing_ the device. In order to pair a new device, you can simply invoke `AdbConnectionManager.getInstance().pair(host, port, pairingCode)`.
 After the pairing, you can connect to ADB via the usual `connect()` methods without any additional steps.
 
-In addition, it is necessary to bypass hidden API restrictions until the Concrypt issue has been fixed. To do that, add
-the following dependency:
+In addition, it is necessary to bypass the hidden API restrictions until the Conscrypt issue has been fixed. To do that,
+add the following dependency:
 ```
 implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
 ```
-Next, extend `android.os.Application` and add it in the manifest. In the extended class add the following:
+Next, extend `android.os.Application` and add it in the manifest. In the extended class, add the following:
 ```java
     @Override
     protected void attachBaseContext(Context base) {
@@ -107,7 +107,7 @@ Next, extend `android.os.Application` and add it in the manifest. In the extende
 ```
 
 ### Opening ADB Shell for Executing Arbitrary Commands
-Simply run `AdbConnectionManager.getInstance().openStream("shell:")`. This will return an `AdbStream` which can be used
+Simply use `AdbConnectionManager.getInstance().openStream("shell:")`. This will return an `AdbStream` which can be used
 to read/write to the ADB shell via `AdbStream#openInputStream()` and `AdbStream#openOutputStream()` methods
 respectively like a normal Java `Process`. While it is possible to read/write in the same thread (first write and then
 read), this is not recommended because the shell might be stuck indefinitely for commands such as `top`.
