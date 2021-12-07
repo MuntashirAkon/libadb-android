@@ -1,0 +1,53 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingVertical="8dp"
+        android:paddingHorizontal="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/connect_adb"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/connect_adb" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pair_adb"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/pair_adb" />
+
+        <androidx.appcompat.widget.AppCompatEditText
+            android:id="@+id/command_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/enter_command"
+            android:inputType="textNoSuggestions"
+            android:fontFamily="monospace"
+            android:maxLines="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/command_run"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:enabled="false"
+            android:text="@string/run_command" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/command_output"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textIsSelectable="true"
+            android:fontFamily="monospace"
+            tools:text="Command output" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
+</ScrollView>
