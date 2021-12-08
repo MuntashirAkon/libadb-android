@@ -112,13 +112,25 @@ final class AdbProtocol {
     /**
      * This function performs a checksum on the ADB payload data.
      *
-     * @param payload Payload to checksum
-     * @return The checksum of the payload
+     * @param data The data
+     * @return The checksum of the data
      */
-    private static int getPayloadChecksum(@NonNull byte[] payload) {
+    private static int getPayloadChecksum(@NonNull byte[] data) {
+        return getPayloadChecksum(data, 0, data.length);
+    }
+
+    /**
+     * This function performs a checksum on the ADB payload data.
+     *
+     * @param data   The data
+     * @param offset The start offset in the data
+     * @param length The number of bytes to take from the data
+     * @return The checksum of the data
+     */
+    private static int getPayloadChecksum(@NonNull byte[] data, int offset, int length) {
         int checksum = 0;
-        for (byte b : payload) {
-            checksum += b & 0xFF;
+        for (int i = offset; i < offset + length; ++i) {
+            checksum += data[i] & 0xFF;
         }
         return checksum;
     }
@@ -150,11 +162,27 @@ final class AdbProtocol {
      * @param command Command identifier constant
      * @param arg0    First argument
      * @param arg1    Second argument
-     * @param payload Data payload
+     * @param data    The data
      * @return Byte array containing the message
      */
     @NonNull
-    public static byte[] generateMessage(@Command int command, int arg0, int arg1, @Nullable byte[] payload) {
+    public static byte[] generateMessage(@Command int command, int arg0, int arg1, @Nullable byte[] data) {
+        return generateMessage(command, arg0, arg1, data, 0, data == null ? 0 : data.length);
+    }
+
+    /**
+     * This function generates an ADB message given the fields.
+     *
+     * @param command Command identifier constant
+     * @param arg0    First argument
+     * @param arg1    Second argument
+     * @param data    The data
+     * @param offset  The start offset in the data
+     * @param length  The number of bytes to take from the data
+     * @return Byte array containing the message
+     */
+    @NonNull
+    public static byte[] generateMessage(@Command int command, int arg0, int arg1, @Nullable byte[] data, int offset, int length) {
         /* struct message {
          *     unsigned command;       // command identifier constant
          *     unsigned arg0;          // first argument
@@ -167,8 +195,8 @@ final class AdbProtocol {
 
         ByteBuffer message;
 
-        if (payload != null) {
-            message = ByteBuffer.allocate(ADB_HEADER_LENGTH + payload.length).order(ByteOrder.LITTLE_ENDIAN);
+        if (data != null) {
+            message = ByteBuffer.allocate(ADB_HEADER_LENGTH + length).order(ByteOrder.LITTLE_ENDIAN);
         } else {
             message = ByteBuffer.allocate(ADB_HEADER_LENGTH).order(ByteOrder.LITTLE_ENDIAN);
         }
@@ -177,9 +205,9 @@ final class AdbProtocol {
         message.putInt(arg0);
         message.putInt(arg1);
 
-        if (payload != null) {
-            message.putInt(payload.length);
-            message.putInt(getPayloadChecksum(payload));
+        if (data != null) {
+            message.putInt(length);
+            message.putInt(getPayloadChecksum(data, offset, length));
         } else {
             message.putInt(0);
             message.putInt(0);
@@ -187,8 +215,8 @@ final class AdbProtocol {
 
         message.putInt(~command);
 
-        if (payload != null) {
-            message.put(payload);
+        if (data != null) {
+            message.put(data, offset, length);
         }
 
         return message.array();
@@ -246,12 +274,14 @@ final class AdbProtocol {
      *
      * @param localId  The unique local ID of the stream
      * @param remoteId The unique remote ID of the stream
-     * @param data     The data to provide as the write payload
+     * @param data     The data
+     * @param offset   The start offset in the data
+     * @param length   The number of bytes to take from the data
      * @return Byte array containing the message
      */
     @NonNull
-    public static byte[] generateWrite(int localId, int remoteId, byte[] data) {
-        return generateMessage(A_WRTE, localId, remoteId, data);
+    public static byte[] generateWrite(int localId, int remoteId, byte[] data, int offset, int length) {
+        return generateMessage(A_WRTE, localId, remoteId, data, offset, length);
     }
 
     /**

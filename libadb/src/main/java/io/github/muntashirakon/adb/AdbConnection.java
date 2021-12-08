@@ -109,7 +109,7 @@ public class AdbConnection implements Closeable {
      * Specifies the maximum amount data that can be sent to the remote peer.
      * This is only valid after connect() returns successfully.
      */
-    private volatile int mMaxData;
+    private volatile int mMaxData = AdbProtocol.CONNECT_MAXDATA;
 
     @NonNull
     private final KeyPair mKeyPair;

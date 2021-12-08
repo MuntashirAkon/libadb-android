@@ -198,10 +198,8 @@ public class AdbStream implements Closeable {
      * @throws InterruptedException If we are unable to wait to send data
      */
     void write(byte[] bytes, int offset, int length) throws IOException, InterruptedException {
-        byte[] data = new byte[length];
-        System.arraycopy(bytes, offset, data, 0, length);
         synchronized (this) {
-            // Make sure we're ready for a write
+            // Make sure we're ready for a WRTE
             while (!mIsClosed && !mWriteReady.compareAndSet(true, false)) {
                 wait();
             }
@@ -210,9 +208,19 @@ public class AdbStream implements Closeable {
                 throw new IOException("Stream closed");
             }
         }
-
-        // Generate a WRTE packet and send it
-        mAdbConnection.sendPacket(AdbProtocol.generateWrite(mLocalId, mRemoteId, data));
+        // Split and send data as WRTE packet
+        int maxData = mAdbConnection.getMaxData();
+        while (length != 0) {
+            if (length <= maxData) {
+                mAdbConnection.sendPacket(AdbProtocol.generateWrite(mLocalId, mRemoteId, bytes, offset, length));
+                offset = offset + length;
+                length = 0;
+            } else { // if (length > maxData) {
+                mAdbConnection.sendPacket(AdbProtocol.generateWrite(mLocalId, mRemoteId, bytes, offset, maxData));
+                offset = offset + maxData;
+                length = length - maxData;
+            }
+        }
     }
 
     public void flush() throws IOException {
