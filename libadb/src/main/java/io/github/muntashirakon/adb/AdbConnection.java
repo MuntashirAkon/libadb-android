@@ -46,6 +46,8 @@ public class AdbConnection implements Closeable {
 
     private final int mPort;
 
+    private final int mApi;
+
     /**
      * The last allocated local stream ID. The ID chosen for the next stream will be this value + 1.
      */
@@ -109,7 +111,9 @@ public class AdbConnection implements Closeable {
      * Specifies the maximum amount data that can be sent to the remote peer.
      * This is only valid after connect() returns successfully.
      */
-    private volatile int mMaxData = AdbProtocol.CONNECT_MAXDATA;
+    private volatile int mMaxData;
+
+    private volatile int mProtocolVersion;
 
     @NonNull
     private final KeyPair mKeyPair;
@@ -145,8 +149,7 @@ public class AdbConnection implements Closeable {
     public static AdbConnection create(@NonNull String host, int port, @NonNull PrivateKey privateKey,
                                        @NonNull Certificate certificate)
             throws IOException {
-        return new AdbConnection(host, port, new KeyPair(Objects.requireNonNull(privateKey),
-                Objects.requireNonNull(certificate)));
+        return create(host, port, privateKey, certificate, Build.VERSION_CODES.BASE);
     }
 
     /**
@@ -157,19 +160,41 @@ public class AdbConnection implements Closeable {
      */
     @WorkerThread
     @NonNull
-    static AdbConnection create(@NonNull String host, int port, @NonNull KeyPair keyPair) throws IOException {
-        return new AdbConnection(host, port, keyPair);
+    public static AdbConnection create(@NonNull String host, int port, @NonNull PrivateKey privateKey,
+                                       @NonNull Certificate certificate, int api)
+            throws IOException {
+        return create(host, port, new KeyPair(Objects.requireNonNull(privateKey), Objects.requireNonNull(certificate)),
+                api);
+    }
+
+    /**
+     * Creates a AdbConnection object associated with the socket and crypto object specified.
+     *
+     * @return A new AdbConnection object.
+     * @throws IOException If there is a socket error
+     */
+    @WorkerThread
+    @NonNull
+    static AdbConnection create(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
+        return new AdbConnection(host, port, keyPair, api);
     }
 
     /**
      * Internal constructor to initialize some internal state
      */
     @WorkerThread
-    private AdbConnection(@NonNull String host, int port, @NonNull KeyPair keyPair) throws IOException {
+    private AdbConnection(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
         this.mHost = Objects.requireNonNull(host);
         this.mPort = port;
+        this.mApi = api;
+        this.mProtocolVersion = AdbProtocol.getProtocolVersion(mApi);
+        this.mMaxData = AdbProtocol.getMaxData(api);
         this.mKeyPair = Objects.requireNonNull(keyPair);
-        this.mSocket = new Socket(host, port);
+        try {
+            this.mSocket = new Socket(host, port);
+        } catch (Throwable th) {
+            throw new IOException(th);
+        }
         this.mPlainInputStream = mSocket.getInputStream();
         this.mPlainOutputStream = mSocket.getOutputStream();
 
@@ -201,15 +226,11 @@ public class AdbConnection implements Closeable {
     @NonNull
     private Thread createConnectionThread() {
         return new Thread(() -> {
+            loop:
             while (!mConnectionThread.isInterrupted()) {
                 try {
                     // Read and parse a message off the socket's input stream
-                    AdbProtocol.Message msg = AdbProtocol.Message.parseAdbMessage(getInputStream());
-
-                    // Verify magic and checksum
-                    if (!AdbProtocol.validateMessage(msg)) {
-                        continue;
-                    }
+                    AdbProtocol.Message msg = AdbProtocol.Message.parse(getInputStream(), mProtocolVersion, mMaxData);
 
                     switch (msg.command) {
                         // Stream-oriented commands
@@ -279,8 +300,7 @@ public class AdbConnection implements Closeable {
                             if (mSentSignature) {
                                 if (mAbortOnUnauthorised) {
                                     mAuthorisationFailed = true;
-                                    // Throwing an exception to break out of the loop
-                                    throw new RuntimeException();
+                                    break loop;
                                 }
 
                                 // We've already tried our signature, so send our public key
@@ -300,6 +320,7 @@ public class AdbConnection implements Closeable {
                         }
                         case AdbProtocol.A_CNXN: {
                             synchronized (AdbConnection.this) {
+                                mProtocolVersion = msg.arg0;
                                 mMaxData = msg.arg1;
                                 mConnectionEstablished = true;
                                 AdbConnection.this.notifyAll();
@@ -339,13 +360,26 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * Gets the max data size that the remote client supports.
-     * A connection must have been attempted before calling this routine.
-     * This routine will block if a connection is in progress.
+     * Get the version of the ADB protocol supported by the server. The result may depend on the API version specified
+     * and whether the connection has been established. In API 29 (Android 9) or later, the server returns
+     * {@link AdbProtocol#A_VERSION_SKIP_CHECKSUM} regardless of the protocol used to create the connection. So, if
+     * {@link #mApi} is set to API 28 or earlier but the OS version is Android 9 or later, before establishing the
+     * connection, it returns {@link AdbProtocol#A_VERSION_MIN}, and after establishing the connection, it returns
+     * {@link AdbProtocol#A_VERSION_SKIP_CHECKSUM}. In other cases, it always returns {@link AdbProtocol#A_VERSION_MIN}.
      *
-     * @return The maximum data size indicated in the connect packet.
+     * @see #isConnectionEstablished()
+     */
+    public int getProtocolVersion() {
+        return mProtocolVersion;
+    }
+
+    /**
+     * Get the max data size supported by the server. A connection have to be attempted before calling this method and
+     * shall be blocked if the connection is in progress.
+     *
+     * @return The maximum data size indicated in the CONNECT packet.
      * @throws InterruptedException If a connection cannot be waited on.
-     * @throws IOException          if the connection fails
+     * @throws IOException          if the connection fails.
      */
     public int getMaxData() throws InterruptedException, IOException {
         if (!mConnectAttempted) {
@@ -358,8 +392,8 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * Whether a connection has been established. A connection has been established if a CNXN request has been received
-     * from the server.
+     * Whether a connection has been established. A connection has been established if a CONNECT request has been
+     * received from the server.
      */
     public boolean isConnectionEstablished() {
         return mConnectionEstablished;
@@ -404,8 +438,8 @@ public class AdbConnection implements Closeable {
             throw new IllegalStateException("Already connected");
         }
 
-        // Send CNXN
-        sendPacket(AdbProtocol.generateConnect());
+        // Send CONNECT
+        sendPacket(AdbProtocol.generateConnect(mApi));
 
         // Start the connection thread to respond to the peer
         mConnectAttempted = true;
@@ -532,6 +566,7 @@ public class AdbConnection implements Closeable {
     public static class Builder {
         private String mHost = "127.0.0.1";
         private int mPort = 5555;
+        private int mApi = Build.VERSION_CODES.BASE;
         private PrivateKey mPrivateKey;
         private Certificate mCertificate;
         private KeyPair mKeyPair;
@@ -572,6 +607,17 @@ public class AdbConnection implements Closeable {
         }
 
         /**
+         * Set Android API (i.e. SDK) version for this connection. If the server and the client are located in the same
+         * directory, the value should be {@link Build.VERSION#SDK_INT} in order to improve performance as well as security.
+         *
+         * @param api The API version, default is {@link Build.VERSION_CODES#BASE}.
+         */
+        public Builder setApi(int api) {
+            this.mApi = api;
+            return this;
+        }
+
+        /**
          * Set generated/stored private key.
          */
         public Builder setPrivateKey(PrivateKey privateKey) {
@@ -604,7 +650,7 @@ public class AdbConnection implements Closeable {
                 }
                 mKeyPair = new KeyPair(mPrivateKey, mCertificate);
             }
-            AdbConnection adbConnection = create(mHost, mPort, mKeyPair);
+            AdbConnection adbConnection = create(mHost, mPort, mKeyPair, mApi);
             if (mDeviceName != null) {
                 adbConnection.setDeviceName(mDeviceName);
             }

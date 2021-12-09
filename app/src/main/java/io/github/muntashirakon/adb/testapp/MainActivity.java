@@ -4,8 +4,10 @@ package io.github.muntashirakon.adb.testapp;
 
 import android.annotation.SuppressLint;
 import android.app.Application;
+import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.View;
@@ -40,6 +42,8 @@ import io.github.muntashirakon.adb.AbsAdbConnectionManager;
 import io.github.muntashirakon.adb.AdbStream;
 
 public class MainActivity extends AppCompatActivity {
+    private static final int DEFAULT_PORT_ADDRESS = 5555;
+
     private MaterialButton connectAdbButton;
     private MaterialButton pairAdbButton;
     private MaterialButton runCommandButton;
@@ -61,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
         init();
     }
 
-    @SuppressLint("SetTextI18n")
     private void init() {
         connectAdbButton.setOnClickListener(v -> {
             if (connected) {
@@ -70,8 +73,7 @@ public class MainActivity extends AppCompatActivity {
             }
             AppCompatEditText editText = new AppCompatEditText(this);
             editText.setInputType(InputType.TYPE_CLASS_NUMBER);
-//            editText.setText("38179");
-            editText.setText("5555");
+            editText.setText(String.valueOf(DEFAULT_PORT_ADDRESS));
             new MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.connect_adb)
                     .setView(editText)
@@ -184,8 +186,9 @@ public class MainActivity extends AppCompatActivity {
                     AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
                     boolean connectionStatus;
                     try {
-                        connectionStatus = manager.connect(getHostIpAddress(), port);
+                        connectionStatus = manager.connect(getHostIpAddress(getApplication()), port);
                     } catch (Throwable th) {
+                        th.printStackTrace();
                         connectionStatus = false;
                     }
                     connectAdb.postValue(connectionStatus);
@@ -215,7 +218,7 @@ public class MainActivity extends AppCompatActivity {
                     boolean pairingStatus;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                        pairingStatus = manager.pair(getHostIpAddress(), port, pairingCode);
+                        pairingStatus = manager.pair(getHostIpAddress(getApplication()), port, pairingCode);
                     } else pairingStatus = false;
                     pairAdb.postValue(pairingStatus);
                 } catch (Throwable th) {
@@ -226,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private volatile boolean clearEnabled;
-        private final Thread outputGeneratorThread = new Thread(() -> {
+        private final Runnable outputGenerator = () -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(adbShellStream.openInputStream()))) {
                 StringBuilder sb = new StringBuilder();
                 String s;
@@ -241,40 +244,51 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        });
+        };
 
         private void execute(String command) {
             executor.submit(() -> {
-                    try {
-                        if (adbShellStream == null || adbShellStream.isClosed()) {
-                            if (adbShellStream != null && adbShellStream.isClosed()) {
-                                outputGeneratorThread.interrupt();
-                            }
-                            AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                            adbShellStream = manager.openStream("shell:");
-                            outputGeneratorThread.start();
-                        }
-                        commandOutput.postValue(null);
-                        if (command.equals("clear")) {
-                            clearEnabled = true;
-                        }
-                        try (OutputStream os = adbShellStream.openOutputStream()) {
-                            os.write((command + "\n").getBytes(StandardCharsets.UTF_8));
-                            os.flush();
-                            os.write("\n".getBytes(StandardCharsets.UTF_8));
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                try {
+                    if (adbShellStream == null || adbShellStream.isClosed()) {
+                        AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
+                        adbShellStream = manager.openStream("shell:");
+                        new Thread(outputGenerator).start();
                     }
+                    if (command.equals("clear")) {
+                        clearEnabled = true;
+                    }
+                    try (OutputStream os = adbShellStream.openOutputStream()) {
+                        os.write(String.format("%1$s\n", command).getBytes(StandardCharsets.UTF_8));
+                        os.flush();
+                        os.write("\n".getBytes(StandardCharsets.UTF_8));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             });
         }
 
         @WorkerThread
         @NonNull
-        private static String getHostIpAddress() {
+        private static String getHostIpAddress(@NonNull Context context) {
+            if (isEmulator(context)) return "10.0.2.2";
             String ipAddress = Inet4Address.getLoopbackAddress().getHostAddress();
             if (ipAddress.equals("::1")) return "127.0.0.1";
             return ipAddress;
+        }
+
+        // https://github.com/firebase/firebase-android-sdk/blob/7d86138304a6573cbe2c61b66b247e930fa05767/firebase-crashlytics/src/main/java/com/google/firebase/crashlytics/internal/common/CommonUtils.java#L402
+        private static final String GOLDFISH = "goldfish";
+        private static final String RANCHU = "ranchu";
+        private static final String SDK = "sdk";
+
+        private static boolean isEmulator(@NonNull Context context) {
+            @SuppressLint("HardwareIds")
+            String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            return Build.PRODUCT.contains(SDK)
+                    || Build.HARDWARE.contains(GOLDFISH)
+                    || Build.HARDWARE.contains(RANCHU)
+                    || androidId == null;
         }
     }
 }

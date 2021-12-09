@@ -43,7 +43,7 @@ public class AdbStream implements Closeable {
     /**
      * Store data received from the first WRTE packet in order to support buffering.
      */
-    private final ByteBuffer mReadBuffer = (ByteBuffer) ByteBuffer.allocate(AdbProtocol.CONNECT_MAXDATA).flip();
+    private final ByteBuffer mReadBuffer;
 
     /**
      * Indicates whether the connection is closed already
@@ -62,10 +62,11 @@ public class AdbStream implements Closeable {
      * @param adbConnection AdbConnection that this stream is running on
      * @param localId       Local ID of the stream
      */
-    AdbStream(AdbConnection adbConnection, int localId) {
+    AdbStream(AdbConnection adbConnection, int localId) throws IOException, InterruptedException {
         this.mAdbConnection = adbConnection;
         this.mLocalId = localId;
         this.mReadQueue = new ConcurrentLinkedQueue<>();
+        this.mReadBuffer = (ByteBuffer) ByteBuffer.allocate(adbConnection.getMaxData()).flip();
         this.mWriteReady = new AtomicBoolean(false);
         this.mIsClosed = false;
     }
@@ -209,6 +210,11 @@ public class AdbStream implements Closeable {
             }
         }
         // Split and send data as WRTE packet
+        // TODO: A WRITE message may not be sent until a READY message is received.
+        //  Once a WRITE message is sent, an additional WRITE message may not be
+        //  sent until another READY message has been received.  Recipients of
+        //  a WRITE message that is in violation of this requirement will CLOSE
+        //  the connection.
         int maxData = mAdbConnection.getMaxData();
         while (length != 0) {
             if (length <= maxData) {

@@ -3,6 +3,7 @@
 package io.github.muntashirakon.adb.testapp;
 
 import android.content.Context;
+import android.os.Build;
 import android.sun.misc.BASE64Encoder;
 import android.sun.security.provider.X509Factory;
 import android.sun.security.x509.AlgorithmId;
@@ -64,7 +65,7 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
     private Certificate mCertificate;
 
     private AdbConnectionManager(@NonNull Context context) throws Exception {
-        // TODO: Load private key and certificate (along with public key) from some place such as KeyStore or file system.
+        setApi(Build.VERSION.SDK_INT);
         mPrivateKey = readPrivateKeyFromFile(context);
         mCertificate = readCertificateFromFile(context);
         if (mPrivateKey == null) {

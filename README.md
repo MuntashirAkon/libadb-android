@@ -22,6 +22,8 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
     private Certificate mCertificate;
 
     private AdbConnectionManager() throws Exception {
+        // Set the API version whose `adbd` is running
+        setApi(Build.VERSION.SDK_INT);
         // TODO: Load private key and certificate (along with public key) from some place such as KeyStore or file system.
         mPrivateKey = ...;
         mCertificate = ...;
