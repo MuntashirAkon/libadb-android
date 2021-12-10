@@ -193,7 +193,8 @@ public class AdbConnection implements Closeable {
         try {
             this.mSocket = new Socket(host, port);
         } catch (Throwable th) {
-            throw new IOException(th);
+            //noinspection UnnecessaryInitCause
+            throw (IOException) new IOException().initCause(th);
         }
         this.mPlainInputStream = mSocket.getInputStream();
         this.mPlainOutputStream = mSocket.getOutputStream();

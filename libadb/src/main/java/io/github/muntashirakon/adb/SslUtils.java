@@ -23,7 +23,8 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
-class SslUtils {
+final class SslUtils {
+    @SuppressLint("TrulyRandom") // This method is only used in Android 9 or later
     @RequiresApi(Build.VERSION_CODES.Q)
     @NonNull
     public static SSLContext getSslContext(KeyPair keyPair) throws NoSuchAlgorithmException, KeyManagementException {

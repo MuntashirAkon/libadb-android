@@ -32,7 +32,8 @@ public class AdbInputStream extends InputStream {
         try {
             return mAdbStream.read(b, off, len);
         } catch (InterruptedException e) {
-            throw new IOException(e);
+            //noinspection UnnecessaryInitCause
+            throw (IOException) new IOException().initCause(e);
         }
     }
 

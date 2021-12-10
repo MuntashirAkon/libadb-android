@@ -10,6 +10,12 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
 public class App extends Application {
     @Override
+    public void onCreate() {
+        super.onCreate();
+        PRNGFixes.apply();
+    }
+
+    @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

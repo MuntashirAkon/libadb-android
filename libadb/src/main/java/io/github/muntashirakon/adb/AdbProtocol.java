@@ -15,7 +15,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -43,7 +42,7 @@ final class AdbProtocol {
     /**
      * The payload sent with the CONNECT message.
      */
-    public static final byte[] SYSTEM_IDENTITY_STRING_HOST = "host::\0".getBytes(Charset.forName("UTF-8"));
+    public static final byte[] SYSTEM_IDENTITY_STRING_HOST = StringCompat.getBytes("host::\0", "UTF-8");
 
     /**
      * AUTH is the authentication message. It is part of the RSA public key authentication added in Android 4.2.2.
@@ -292,7 +291,7 @@ final class AdbProtocol {
     @NonNull
     public static byte[] generateOpen(int localId, @NonNull String destination) {
         ByteBuffer bbuf = ByteBuffer.allocate(destination.length() + 1);
-        bbuf.put(destination.getBytes(Charset.forName("UTF-8")));
+        bbuf.put(StringCompat.getBytes(destination, "UTF-8"));
         bbuf.put((byte) 0);
         return generateMessage(A_OPEN, localId, 0, bbuf.array());
     }

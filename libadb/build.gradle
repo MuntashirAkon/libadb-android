@@ -5,12 +5,15 @@ plugins {
     id 'maven-publish'
 }
 
+group = 'io.github.muntashirakon'
+version = '0.1.0'
+
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.3"
 
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 1
         targetSdkVersion 30
         versionCode 1
         versionName "0.1.0"
@@ -32,6 +35,8 @@ afterEvaluate {
         publications {
             release(MavenPublication) {
                 from components.release
+                groupId = 'io.github.muntashirakon'
+                artifactId = 'adb'
             }
         }
     }

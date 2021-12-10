@@ -2,21 +2,20 @@
 
 package io.github.muntashirakon.adb;
 
-import android.util.Base64;
-
 import androidx.annotation.NonNull;
+
+import org.bouncycastle.util.encoders.Base64;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.security.interfaces.RSAPublicKey;
 
 import javax.crypto.Cipher;
 
 // Copyright 2013 Cameron Gutman
-public final class AdbCrypto {
+final class AdbCrypto {
     /**
      * The ADB RSA key length in bits
      */
@@ -125,11 +124,10 @@ public final class AdbCrypto {
 
         buffer.putInt(publicKey.getPublicExponent().intValue());
 
-        byte[] convertedKey = Base64.encode(buffer.array(), Base64.NO_WRAP);
+        byte[] convertedKey = Base64.encode(buffer.array());
 
         /* The key is base64 encoded with a user@host suffix and terminated with a NULL */
-        @SuppressWarnings("CharsetObjectCanBeUsed")
-        byte[] nameBytes = (' ' + name + '\u0000').getBytes(Charset.forName("UTF-8"));
+        byte[] nameBytes = StringCompat.getBytes(' ' + name + '\u0000', "UTF-8");
 
         byte[] payload = new byte[convertedKey.length + nameBytes.length];
         System.arraycopy(convertedKey, 0, payload, 0, convertedKey.length);

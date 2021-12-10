@@ -27,7 +27,8 @@ public class AdbOutputStream extends OutputStream {
         try {
             mAdbStream.write(b, off, len);
         } catch (InterruptedException e) {
-            throw new IOException(e);
+            //noinspection UnnecessaryInitCause
+            throw (IOException) new IOException().initCause(e);
         }
     }
 
