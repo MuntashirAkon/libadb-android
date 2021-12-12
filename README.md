@@ -3,6 +3,61 @@
 **Disclaimer:** This is an unaudited library. Use at your own risk.
 
 ## Get Started
+### Add dependencies
+LibADB Android is available via JitPack.
+
+```groovy
+// Top level build file
+repositories {
+    mavenCentral()
+    maven { url "https://jitpack.io" }
+}
+
+// Add to dependencies section
+dependencies {
+    // Add this library
+    implementation 'com.github.MuntashirAkon:libadb-android:1.0.0'
+    
+    // Library to generate X509Certificate. You can also use BouncyCastle for this. See example for use-case.
+    // implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
+
+    // Bypass hidden API if you want to use Android default Conscrypt in Android 9 (Pie) or later.
+    // It also requires additional steps. See https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about
+    // this. Uncomment the line below if you want to do this.
+    // implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
+
+    // Use custom Conscrypt library. If you want to connect to a remote ADB server instead of the device the app is
+    // currently running or do not want to bypass hidden API, this is the recommended choice.
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
+}
+```
+
+If you're using the custom Conscrypt library in order to connect to a remote ADB server and the app targets Android
+version below 4.4, you have to extend `android.app.Application` in order to fixes for random number generation:
+```java
+public class MyAwesomeApp extends Application {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        // Fix random number generation in Android versions below 4.4.
+        PRNGFixes.apply();
+    }
+
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        // Uncomment the following line if you want to bypass hidden API as described above.
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        //     HiddenApiBypass.addHiddenApiExemptions("L");
+        // }
+    }
+}
+```
+
+**Notice:** Conscrypt only supports API 9 (Gingerbread) or later, meaning you cannot use ADB pairing or any TLSv1.3
+features in API less than 9. The corresponding methods are already annotated properly. So, you don't have to worry about
+compatibility issues that may arise when your app's minimum SDK is set to one of the unsupported versions.
+
 ### Connecting to ADB
 Instead of doing everything manually, you can create a concrete implementation of the `AbsAdbConnectionManager` class. 
 Example:
@@ -91,22 +146,6 @@ Then, you can simply connect to ADB by invoking `AdbConnectionManager.getInstanc
 Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging requires an extra step of
 _pairing_ the device. In order to pair a new device, you can simply invoke `AdbConnectionManager.getInstance().pair(host, port, pairingCode)`.
 After the pairing, you can connect to ADB via the usual `connect()` methods without any additional steps.
-
-In addition, it is necessary to bypass the hidden API restrictions until the Conscrypt issue has been fixed. To do that,
-add the following dependency:
-```
-implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
-```
-Next, extend `android.os.Application` and add it in the manifest. In the extended class, add the following:
-```java
-    @Override
-    protected void attachBaseContext(Context base) {
-        super.attachBaseContext(base);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            HiddenApiBypass.addHiddenApiExemptions("L");
-        }
-    }
-```
 
 ### Opening ADB Shell for Executing Arbitrary Commands
 Simply use `AdbConnectionManager.getInstance().openStream("shell:")`. This will return an `AdbStream` which can be used

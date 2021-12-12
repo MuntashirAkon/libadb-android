@@ -13,7 +13,6 @@ import androidx.annotation.WorkerThread;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Objects;
@@ -262,7 +261,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws Exception If pairing failed for some reason.
      */
     @WorkerThread
-    @RequiresApi(Build.VERSION_CODES.R)
+    @RequiresApi(Build.VERSION_CODES.GINGERBREAD)
     public boolean pair(int port, @NonNull String pairingCode) throws Exception {
         return pair(mHostAddress, port, pairingCode);
     }
@@ -277,11 +276,11 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws Exception If pairing failed for some reason.
      */
     @WorkerThread
-    @RequiresApi(Build.VERSION_CODES.R)
+    @RequiresApi(Build.VERSION_CODES.GINGERBREAD)
     public boolean pair(@NonNull String host, int port, @NonNull String pairingCode) throws Exception {
         KeyPair keyPair = getAdbKeyPair();
         try (PairingConnectionCtx pairingClient = new PairingConnectionCtx(Objects.requireNonNull(host), port,
-                Objects.requireNonNull(pairingCode).getBytes(StandardCharsets.UTF_8), keyPair, getDeviceName())) {
+                StringCompat.getBytes(Objects.requireNonNull(pairingCode), "UTF-8"), keyPair, getDeviceName())) {
             // TODO: 5/12/21 Return true/false instead of only exceptions
             pairingClient.start();
         }

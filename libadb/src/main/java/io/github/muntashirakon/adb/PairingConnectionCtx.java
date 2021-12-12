@@ -11,9 +11,11 @@ import androidx.annotation.RequiresApi;
 
 import com.android.org.conscrypt.Conscrypt;
 
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -33,8 +35,8 @@ import javax.net.ssl.SSLSocket;
 
 // https://github.com/aosp-mirror/platform_system_core/blob/android-11.0.0_r1/adb/pairing_connection/pairing_connection.cpp
 // Also based on Shizuku's implementation
-@RequiresApi(Build.VERSION_CODES.R)
-public final class PairingConnectionCtx implements AutoCloseable {
+@RequiresApi(Build.VERSION_CODES.GINGERBREAD)
+public final class PairingConnectionCtx implements Closeable {
     public static final String TAG = PairingConnectionCtx.class.getSimpleName();
 
     public static final String EXPORTED_KEY_LABEL = "adb-label\u0000";
@@ -153,7 +155,23 @@ public final class PairingConnectionCtx implements AutoCloseable {
     }
 
     private byte[] exportKeyingMaterial(SSLSocket sslSocket, int length) throws SSLException {
-        return Conscrypt.exportKeyingMaterial(sslSocket, EXPORTED_KEY_LABEL, null, length);
+        try {
+            if (SslUtils.isCustomConscrypt()) {
+                Class<?> conscryptClass = Class.forName("org.conscrypt.Conscrypt");
+                Method exportKeyingMaterial = conscryptClass.getMethod("exportKeyingMaterial", SSLSocket.class,
+                        String.class, byte[].class, int.class);
+                return (byte[]) exportKeyingMaterial.invoke(null, sslSocket, EXPORTED_KEY_LABEL, null, length);
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                // Custom error message to inform user that they should use custom Conscrypt library.
+                throw new SSLException("TLSv1.3 isn't supported on your platform. Use custom Conscrypt library instead.");
+            }
+            return Conscrypt.exportKeyingMaterial(sslSocket, EXPORTED_KEY_LABEL, null, length);
+        } catch (SSLException e) {
+            throw e;
+        } catch (Throwable th) {
+            throw new SSLException(th);
+        }
     }
 
     private void writeHeader(@NonNull PairingPacketHeader header, @NonNull byte[] payload) throws IOException {
@@ -205,7 +223,8 @@ public final class PairingConnectionCtx implements AutoCloseable {
             return mPairingAuthCtx.initCipher(theirMsg);
         } catch (Exception e) {
             Log.e(TAG, "Unable to initialize pairing cipher");
-            throw new IOException(e);
+            //noinspection UnnecessaryInitCause
+            throw (IOException) new IOException().initCause(e);
         }
     }
 

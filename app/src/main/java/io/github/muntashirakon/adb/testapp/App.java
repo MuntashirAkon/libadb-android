@@ -8,6 +8,8 @@ import android.os.Build;
 
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
+import io.github.muntashirakon.adb.PRNGFixes;
+
 public class App extends Application {
     @Override
     public void onCreate() {

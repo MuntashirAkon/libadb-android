@@ -272,7 +272,7 @@ public class AdbConnection implements Closeable {
                             break;
                         }
                         case AdbProtocol.A_STLS: {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
                                 sendPacket(AdbProtocol.generateStls());
 
                                 SSLContext sslContext = SslUtils.getSslContext(mKeyPair);

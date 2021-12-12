@@ -20,7 +20,6 @@ import org.bouncycastle.crypto.params.KeyParameter;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import javax.security.auth.Destroyable;
@@ -28,16 +27,16 @@ import javax.security.auth.Destroyable;
 import io.github.muntashirakon.crypto.spake2.Spake2Context;
 import io.github.muntashirakon.crypto.spake2.Spake2Role;
 
-@RequiresApi(Build.VERSION_CODES.R)
+@RequiresApi(Build.VERSION_CODES.GINGERBREAD)
 class PairingAuthCtx implements Destroyable {
     // The following values are taken from the following source and are subjected to change
     // https://github.com/aosp-mirror/platform_system_core/blob/android-11.0.0_r1/adb/pairing_auth/pairing_auth.cpp
-    private static final byte[] CLIENT_NAME = "adb pair client\u0000".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] SERVER_NAME = "adb pair server\u0000".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CLIENT_NAME = StringCompat.getBytes("adb pair client\u0000", "UTF-8");
+    private static final byte[] SERVER_NAME = StringCompat.getBytes("adb pair server\u0000", "UTF-8");
 
     // The following values are taken from the following source and are subjected to change
     // https://github.com/aosp-mirror/platform_system_core/blob/android-11.0.0_r1/adb/pairing_auth/aes_128_gcm.cpp
-    private static final byte[] INFO = "adb pairing_auth aes-128-gcm key".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] INFO = StringCompat.getBytes("adb pairing_auth aes-128-gcm key", "UTF-8");
     private static final int HKDF_KEY_LENGTH = 128 / 8;
     public static final int GCM_IV_LENGTH = 12; // in bytes
 

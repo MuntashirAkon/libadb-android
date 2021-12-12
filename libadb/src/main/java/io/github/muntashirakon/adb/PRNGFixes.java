@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT AND (GPL-3.0-or-later OR Apache-2.0)
 
-package io.github.muntashirakon.adb.testapp;
+package io.github.muntashirakon.adb;
 
 import android.os.Build;
 import android.os.Process;
@@ -274,7 +274,9 @@ public final class PRNGFixes {
             seedBufferOut.writeLong(System.currentTimeMillis());
             seedBufferOut.writeLong(System.nanoTime());
             seedBufferOut.writeInt(Process.myPid());
-            seedBufferOut.writeInt(Process.myUid());
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BASE_1_1) {
+                seedBufferOut.writeInt(Process.myUid());
+            }
             seedBufferOut.write(BUILD_FINGERPRINT_AND_DEVICE_SERIAL);
             seedBufferOut.close();
             return seedBuffer.toByteArray();

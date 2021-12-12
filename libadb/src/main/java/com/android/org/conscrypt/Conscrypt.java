@@ -9,7 +9,9 @@ import androidx.annotation.RequiresApi;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 
-@RequiresApi(Build.VERSION_CODES.R)
+// Although support for conscrypt has been added in Android 5.0 (Lollipop),
+// TLS1.3 isn't supported until Android 9 (Pie).
+@RequiresApi(Build.VERSION_CODES.Q)
 public final class Conscrypt {
     /**
      * Exports a value derived from the TLS master secret as described in RFC 5705.
