@@ -2,14 +2,13 @@
 
 package io.github.muntashirakon.adb;
 
+import android.annotation.SuppressLint;
 import android.os.Build;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-
-import com.android.org.conscrypt.Conscrypt;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
@@ -154,19 +153,24 @@ public final class PairingConnectionCtx implements Closeable {
         this.mPairingAuthCtx = pairingAuthCtx;
     }
 
+    @SuppressLint("PrivateApi") // Conscrypt is a stable private API
     private byte[] exportKeyingMaterial(SSLSocket sslSocket, int length) throws SSLException {
+        // Conscrypt#exportKeyingMaterial(SSLSocket socket, String label, byte[] context, int length): byte[]
+        //          throws SSLException
         try {
+            Class<?> conscryptClass;
             if (SslUtils.isCustomConscrypt()) {
-                Class<?> conscryptClass = Class.forName("org.conscrypt.Conscrypt");
-                Method exportKeyingMaterial = conscryptClass.getMethod("exportKeyingMaterial", SSLSocket.class,
-                        String.class, byte[].class, int.class);
-                return (byte[]) exportKeyingMaterial.invoke(null, sslSocket, EXPORTED_KEY_LABEL, null, length);
-            }
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                // Custom error message to inform user that they should use custom Conscrypt library.
+                conscryptClass = Class.forName("org.conscrypt.Conscrypt");
+            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                // Although support for conscrypt has been added in Android 5.0 (Lollipop),
+                // TLS1.3 isn't supported until Android 9 (Pie).
                 throw new SSLException("TLSv1.3 isn't supported on your platform. Use custom Conscrypt library instead.");
+            } else {
+                conscryptClass = Class.forName("com.android.org.conscrypt.Conscrypt");
             }
-            return Conscrypt.exportKeyingMaterial(sslSocket, EXPORTED_KEY_LABEL, null, length);
+            Method exportKeyingMaterial = conscryptClass.getMethod("exportKeyingMaterial", SSLSocket.class,
+                    String.class, byte[].class, int.class);
+            return (byte[]) exportKeyingMaterial.invoke(null, sslSocket, EXPORTED_KEY_LABEL, null, length);
         } catch (SSLException e) {
             throw e;
         } catch (Throwable th) {
