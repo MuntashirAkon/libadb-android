@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.InvalidKeyException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -65,25 +66,20 @@ public final class PairingConnectionCtx implements AutoCloseable {
 
     public PairingConnectionCtx(@NonNull String host, int port, @NonNull byte[] pswd, @NonNull KeyPair keyPair,
                                 @NonNull String deviceName)
-            throws NoSuchAlgorithmException, KeyManagementException {
+            throws NoSuchAlgorithmException, KeyManagementException, InvalidKeyException {
         this.mHost = Objects.requireNonNull(host);
         this.mPort = port;
         this.mPswd = Objects.requireNonNull(pswd);
-        this.mPeerInfo = new PeerInfo(PeerInfo.ADB_RSA_PUB_KEY, AdbCrypto.getAdbFormattedRsaPublicKey((RSAPublicKey)
+        this.mPeerInfo = new PeerInfo(PeerInfo.ADB_RSA_PUB_KEY, AndroidPubkey.encodeWithName((RSAPublicKey)
                 keyPair.getPublicKey(), Objects.requireNonNull(deviceName)));
         this.mSslContext = SslUtils.getSslContext(keyPair);
     }
 
     public PairingConnectionCtx(@NonNull String host, int port, @NonNull byte[] pswd, @NonNull PrivateKey privateKey,
                                 @NonNull Certificate certificate, @NonNull String deviceName)
-            throws NoSuchAlgorithmException, KeyManagementException {
-        this.mHost = Objects.requireNonNull(host);
-        this.mPort = port;
-        this.mPswd = Objects.requireNonNull(pswd);
-        KeyPair keyPair = new KeyPair(Objects.requireNonNull(privateKey), Objects.requireNonNull(certificate));
-        this.mPeerInfo = new PeerInfo(PeerInfo.ADB_RSA_PUB_KEY, AdbCrypto.getAdbFormattedRsaPublicKey((RSAPublicKey)
-                keyPair.getPublicKey(), Objects.requireNonNull(deviceName)));
-        this.mSslContext = SslUtils.getSslContext(keyPair);
+            throws NoSuchAlgorithmException, KeyManagementException, InvalidKeyException {
+        this(host, port, pswd, new KeyPair(Objects.requireNonNull(privateKey), Objects.requireNonNull(certificate)),
+                deviceName);
     }
 
     public void start() throws IOException {

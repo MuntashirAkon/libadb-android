@@ -30,7 +30,7 @@ final class AdbProtocol {
     /**
      * SYNC(online, sequence, "")
      *
-     * @deprecated Obsolete, no longer used
+     * @deprecated Obsolete, no longer used. Never used on the client side.
      */
     public static final int A_SYNC = 0x434e5953;
 
@@ -45,7 +45,8 @@ final class AdbProtocol {
     public static final byte[] SYSTEM_IDENTITY_STRING_HOST = StringCompat.getBytes("host::\0", "UTF-8");
 
     /**
-     * AUTH is the authentication message. It is part of the RSA public key authentication added in Android 4.2.2.
+     * AUTH is the authentication message. It is part of the RSA public key authentication added in Android 4.2.2
+     * ({@link Build.VERSION_CODES#JELLY_BEAN_MR1}).
      */
     public static final int A_AUTH = 0x48545541;
 
@@ -70,7 +71,7 @@ final class AdbProtocol {
     public static final int A_WRTE = 0x45545257;
 
     /**
-     * STLS is the Stream-based TLS1.3 authentication method, added in Android 9.
+     * STLS is the Stream-based TLS1.3 authentication method, added in Android 9 ({@link Build.VERSION_CODES#P}).
      */
     public static final int A_STLS = 0x534c5453;
 

@@ -305,13 +305,12 @@ public class AdbConnection implements Closeable {
                                 }
 
                                 // We've already tried our signature, so send our public key
-                                packet = AdbProtocol.generateAuth(AdbProtocol.ADB_AUTH_RSAPUBLICKEY, AdbCrypto
-                                        .getAdbFormattedRsaPublicKey((RSAPublicKey) mKeyPair.getPublicKey(),
-                                                mDeviceName));
+                                packet = AdbProtocol.generateAuth(AdbProtocol.ADB_AUTH_RSAPUBLICKEY, AndroidPubkey
+                                        .encodeWithName((RSAPublicKey) mKeyPair.getPublicKey(), mDeviceName));
                             } else {
                                 // Sign the token
-                                packet = AdbProtocol.generateAuth(AdbProtocol.ADB_AUTH_SIGNATURE, AdbCrypto
-                                        .signAdbTokenPayload(mKeyPair, msg.payload));
+                                packet = AdbProtocol.generateAuth(AdbProtocol.ADB_AUTH_SIGNATURE, AndroidPubkey
+                                        .adbAuthSign(mKeyPair.getPrivateKey(), msg.payload));
                                 mSentSignature = true;
                             }
 

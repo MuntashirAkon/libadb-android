@@ -47,4 +47,6 @@ dependencies {
     implementation 'org.bouncycastle:bcprov-jdk15on:1.69'
 //    implementation 'org.conscrypt:conscrypt-android:2.5.2'
     implementation 'com.github.MuntashirAkon.spake2-java:android:7ec739b5c4'
+
+    testImplementation 'junit:junit:4.13.2'
 }
