@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.muntashirakon'
-version = '1.0.0'
+version = '1.0.1'
 
 android {
     compileSdkVersion 31
@@ -15,8 +15,6 @@ android {
     defaultConfig {
         minSdkVersion 1
         targetSdkVersion 31
-        versionCode 1
-        versionName "1.0.0"
     }
 
     buildTypes {
