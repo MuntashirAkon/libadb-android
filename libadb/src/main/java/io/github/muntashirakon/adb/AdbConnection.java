@@ -360,8 +360,8 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * Get the version of the ADB protocol supported by the server. The result may depend on the API version specified
-     * and whether the connection has been established. In API 29 (Android 9) or later, the server returns
+     * Get the version of the ADB protocol supported by the ADB daemon. The result may depend on the API version
+     * specified and whether the connection has been established. In API 29 (Android 9) or later, the daemon returns
      * {@link AdbProtocol#A_VERSION_SKIP_CHECKSUM} regardless of the protocol used to create the connection. So, if
      * {@link #mApi} is set to API 28 or earlier but the OS version is Android 9 or later, before establishing the
      * connection, it returns {@link AdbProtocol#A_VERSION_MIN}, and after establishing the connection, it returns
@@ -374,8 +374,8 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * Get the max data size supported by the server. A connection have to be attempted before calling this method and
-     * shall be blocked if the connection is in progress.
+     * Get the max data size supported by the ADB daemon. A connection have to be attempted before calling this method
+     * and shall be blocked if the connection is in progress.
      *
      * @return The maximum data size indicated in the CONNECT packet.
      * @throws InterruptedException If a connection cannot be waited on.
@@ -393,14 +393,14 @@ public class AdbConnection implements Closeable {
 
     /**
      * Whether a connection has been established. A connection has been established if a CONNECT request has been
-     * received from the server.
+     * received from the ADB daemon.
      */
     public boolean isConnectionEstablished() {
         return mConnectionEstablished;
     }
 
     /**
-     * Whether the underlying socket is connected to a server and is not in a closed state.
+     * Whether the underlying socket is connected to an ADB daemon and is not in a closed state.
      */
     public boolean isConnected() {
         return !mSocket.isClosed() && mSocket.isConnected();
@@ -607,8 +607,9 @@ public class AdbConnection implements Closeable {
         }
 
         /**
-         * Set Android API (i.e. SDK) version for this connection. If the server and the client are located in the same
-         * directory, the value should be {@link Build.VERSION#SDK_INT} in order to improve performance as well as security.
+         * Set Android API (i.e. SDK) version for this connection. If the ADB daemon and the client are located in the
+         * same device, the value should be {@link Build.VERSION#SDK_INT} in order to improve performance as well as
+         * security.
          *
          * @param api The API version, default is {@link Build.VERSION_CODES#BASE}.
          */

@@ -1,9 +1,14 @@
 # LibADB Android
 
-**Disclaimer:** This is an unaudited library. Use at your own risk.
+ADB library for Android. It enables an app to connect to the ADB daemon (`adbd` process) belonging to the same or a
+different device and execute arbitrary services or commands (via `shell:` service).
 
-## Get Started
-### Add dependencies
+**Disclaimer:** This library has never gone through a security audit. Please, proceed with caution if security is
+crucial for your app. Avoid using the APIs for reasons other than connecting or using ADB. For the safety of your app
+and its users, open a remote service instead of using ADB all the time and ask the user to stop or kill the ADB daemon.
+
+## Getting Started
+### Adding Dependencies
 LibADB Android is available via JitPack.
 
 ```groovy
@@ -16,24 +21,27 @@ repositories {
 // Add to dependencies section
 dependencies {
     // Add this library
-    implementation 'com.github.MuntashirAkon:libadb-android:1.0.0'
+    implementation 'com.github.MuntashirAkon:libadb-android:1.0.1'
     
-    // Library to generate X509Certificate. You can also use BouncyCastle for this. See example for use-case.
+    // Library to generate X509Certificate. You can also use BouncyCastle for
+    // this. See example for use-case.
     // implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
 
-    // Bypass hidden API if you want to use Android default Conscrypt in Android 9 (Pie) or later.
-    // It also requires additional steps. See https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about
-    // this. Uncomment the line below if you want to do this.
+    // Bypass hidden API if you want to use the Android default Conscrypt in
+    // Android 9 (Pie) or later. It also requires additional steps. See
+    // https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about
+    // this.
     // implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
 
-    // Use custom Conscrypt library. If you want to connect to a remote ADB server instead of the device the app is
-    // currently running or do not want to bypass hidden API, this is the recommended choice.
+    // Use custom Conscrypt library. If you want to connect to a remote ADB
+    // daemon instead of the device the app is currently running or do not want
+    // to bypass hidden API, this is the recommended choice.
     implementation 'org.conscrypt:conscrypt-android:2.5.2'
 }
 ```
 
-If you're using the custom Conscrypt library in order to connect to a remote ADB server and the app targets Android
-version below 4.4, you have to extend `android.app.Application` in order to fixes for random number generation:
+If you're using the custom Conscrypt library in order to connect to a remote ADB daemon and the app targets Android
+version below 4.4, you have to extend `android.app.Application` to apply fixes for the random number generation:
 ```java
 public class MyAwesomeApp extends Application {
     @Override
@@ -46,7 +54,8 @@ public class MyAwesomeApp extends Application {
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
-        // Uncomment the following line if you want to bypass hidden API as described above.
+        // Uncomment the following line if you want to bypass hidden API as
+        // described above.
         // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         //     HiddenApiBypass.addHiddenApiExemptions("L");
         // }
@@ -79,7 +88,8 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
     private AdbConnectionManager() throws Exception {
         // Set the API version whose `adbd` is running
         setApi(Build.VERSION.SDK_INT);
-        // TODO: Load private key and certificate (along with public key) from some place such as KeyStore or file system.
+        // TODO: Load private key and certificate (along with public key) from
+        //  some place such as KeyStore or file system.
         mPrivateKey = ...;
         mCertificate = ...;
         if (mPrivateKey == null) {
@@ -91,8 +101,8 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
             PublicKey publicKey = generateKeyPair.getPublic();
             mPrivateKey = generateKeyPair.getPrivate();
             // Generate a certificate
-            // On Android, if you aren't using hidden APIs, you can add this dependency in build.gradle:
-            // implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
+            // On Android, it requires sun.security-android library as mentioned
+            // above.
             String subject = "CN=My Awesome App";
             String algorithmName = "SHA512withRSA";
             long expiryDate = System.currentTimeMillis() + 86400000;
@@ -116,7 +126,7 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
             X509CertImpl x509CertImpl = new X509CertImpl(x509CertInfo);
             x509CertImpl.sign(mPrivateKey, algorithmName);
             mCertificate = x509CertImpl;
-            // TODO: Store the key pair to some place else
+            // TODO: Store the key pair to some place else.
         }
     }
 
@@ -140,7 +150,7 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
 }
 ```
 
-Then, you can simply connect to ADB by invoking `AdbConnectionManager.getInstance().connect(host, port)`.
+Then, you can simply connect to ADB daemon by invoking `AdbConnectionManager.getInstance().connect(host, port)`.
 
 ### Wireless Debugging
 Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging requires an extra step of
@@ -152,6 +162,9 @@ Simply use `AdbConnectionManager.getInstance().openStream("shell:")`. This will 
 to read/write to the ADB shell via `AdbStream#openInputStream()` and `AdbStream#openOutputStream()` methods
 respectively like a normal Java `Process`. While it is possible to read/write in the same thread (first write and then
 read), this is not recommended because the shell might be stuck indefinitely for commands such as `top`.
+
+**NOTE:** If you want to create a full-featured terminal emulator, this approach isn't recommended. Instead, you should
+create a remote service via `app_process` or start an SSH server and connect to it.
 
 ## For Java (non-Android) Projects
 It is possible to modify this library to work on non-Android project. But it isn't supported because Spake2-Java only
@@ -175,4 +188,4 @@ Copyright 2021 Muntashir Al-Islam
 
 Licensed under the GPLv3: https://www.gnu.org/licenses/gpl-3.0.html
 
-_It was not possible to use a permissive license because it has GPL dependencies._
+_It wasn't possible to use a permissive license because it has GPL dependencies. LibADB itself is dual licensed._

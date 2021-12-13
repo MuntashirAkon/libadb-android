@@ -140,7 +140,7 @@ public class AdbStream implements Closeable {
     }
 
     /**
-     * Read bytes from the server.
+     * Read bytes from the ADB daemon.
      *
      * @return the next byte of data, or {@code -1} if the end of the stream is reached.
      * @throws InterruptedException If we are unable to wait for data

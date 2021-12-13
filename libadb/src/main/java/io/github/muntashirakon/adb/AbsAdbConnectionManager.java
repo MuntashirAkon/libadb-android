@@ -67,7 +67,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Set Android API (i.e. SDK) version for this connection. If the server and the client are located in the same
+     * Set Android API (i.e. SDK) version for this connection. If the daemon and the client are located in the same
      * directory, the value should be {@link Build.VERSION#SDK_INT} in order to improve performance as well as security.
      *
      * @param api The API version, default is {@link Build.VERSION_CODES#BASE}.
@@ -115,7 +115,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Set whether to throw {@link AdbAuthenticationFailedException} if the server rejects the first authentication
+     * Set whether to throw {@link AdbAuthenticationFailedException} if the daemon rejects the first authentication
      * attempt.
      *
      * @param throwOnUnauthorised {@code true} to throw {@link AdbAuthenticationFailedException} or {@code false}
@@ -127,7 +127,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Get whether to throw {@link AdbAuthenticationFailedException} if the server rejects the first authentication
+     * Get whether to throw {@link AdbAuthenticationFailedException} if the daemon rejects the first authentication
      * attempt.
      *
      * @return {@code true} if the system is configured to throw {@link AdbAuthenticationFailedException} or
@@ -151,7 +151,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Check if it is connected to an ADB server.
+     * Check if it is connected to an ADB daemon.
      *
      * @return {@code true} if connected, {@code false} otherwise.
      */
@@ -169,9 +169,9 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * attempt is unsuccessful, or it has already been made.
      * @throws IOException                      If the socket connection could not be made.
      * @throws InterruptedException             If timeout has reached.
-     * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the
-     *                                          server has rejected the first authentication attempt, which indicates
-     *                                          that the server has not saved the public key from a previous connection.
+     * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
+     *                                          daemon has rejected the first authentication attempt, which indicates
+     *                                          that the daemon has not saved the public key from a previous connection.
      */
     @WorkerThread
     public boolean connect(int port) throws IOException, InterruptedException {
@@ -198,8 +198,9 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws IOException                      If the socket connection could not be made.
      * @throws InterruptedException             If timeout has reached.
      * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the
-     *                                          server has rejected the first authentication attempt, which indicates
-     *                                          that the server has not saved the public key from a previous connection.
+     *                                          ADB daemon has rejected the first authentication attempt, which
+     *                                          indicates that the daemon has not saved the public key from a previous
+     *                                          connection.
      */
     @WorkerThread
     public boolean connect(@NonNull String host, int port) throws IOException, InterruptedException {
@@ -253,7 +254,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Pair with a server given port number and pairing code.
+     * Pair with an ADB daemon given port number and pairing code.
      *
      * @param port        Port number
      * @param pairingCode The six-digit pairing code as string
@@ -267,7 +268,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
-     * Pair with a server given host address, port number and pairing code.
+     * Pair with an ADB daemon given host address, port number and pairing code.
      *
      * @param host        Host address to use instead of taking it from the {@link #getHostAddress()}
      * @param port        Port number
