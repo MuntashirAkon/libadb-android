@@ -263,4 +263,25 @@ public class AdbStream implements Closeable {
     public boolean isClosed() {
         return mIsClosed;
     }
+
+    /**
+     * Returns an estimate of available data.
+     *
+     * @return  an estimate of the number of bytes that can be read from this
+     *          stream without blocking.
+     *
+     * @throws IOException if the stream is close.
+     */
+    public int available() throws IOException {
+        synchronized (this) {
+            if (mIsClosed) {
+                throw new IOException("Stream closed.");
+            }
+            if (mReadBuffer.hasRemaining()) {
+                return mReadBuffer.remaining();
+            }
+            byte[] data = mReadQueue.peek();
+            return data == null ? 0 : data.length;
+        }
+    }
 }
