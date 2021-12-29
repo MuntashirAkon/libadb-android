@@ -35,4 +35,9 @@ public class AdbInputStream extends InputStream {
     @Override
     public void close() {
     }
+
+    @Override
+    public int available() throws IOException {
+        return mAdbStream.available();
+    }
 }
