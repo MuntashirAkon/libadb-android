@@ -5,7 +5,7 @@ different device and execute arbitrary services or commands (via `shell:` servic
 
 **Disclaimer:** This library has never gone through a security audit. Please, proceed with caution if security is
 crucial for your app. Avoid using the APIs for reasons other than connecting or using ADB. For the safety of your app
-and its users, open a remote service instead of using ADB all the time and ask the user to stop or kill the ADB daemon.
+and its users, open a remote service instead of using ADB and ask the user to disconnect Wireless debugging.
 
 ## Getting Started
 ### Adding Dependencies
