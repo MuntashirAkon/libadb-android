@@ -24,12 +24,7 @@ public class AdbOutputStream extends OutputStream {
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
-        try {
-            mAdbStream.write(b, off, len);
-        } catch (InterruptedException e) {
-            //noinspection UnnecessaryInitCause
-            throw (IOException) new IOException().initCause(e);
-        }
+        mAdbStream.write(b, off, len);
     }
 
     @Override

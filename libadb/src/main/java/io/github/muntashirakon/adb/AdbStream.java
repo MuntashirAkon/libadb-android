@@ -143,10 +143,9 @@ public class AdbStream implements Closeable {
      * Read bytes from the ADB daemon.
      *
      * @return the next byte of data, or {@code -1} if the end of the stream is reached.
-     * @throws InterruptedException If we are unable to wait for data
      * @throws IOException          If the stream fails while waiting
      */
-    int read(byte[] bytes, int offset, int length) throws InterruptedException, IOException {
+    public int read(byte[] bytes, int offset, int length) throws IOException {
         if (mReadBuffer.hasRemaining()) {
             return readBuffer(bytes, offset, length);
         }
@@ -155,7 +154,12 @@ public class AdbStream implements Closeable {
             byte[] data;
             // Wait for the connection to close or data to be received
             while ((data = mReadQueue.poll()) == null && !mIsClosed) {
-                mReadQueue.wait();
+                try {
+                    mReadQueue.wait();
+                } catch (InterruptedException e) {
+                    //noinspection UnnecessaryInitCause
+                    throw (IOException) new IOException().initCause(e);
+                }
             }
             // Add data to the buffer
             if (data != null) {
@@ -196,13 +200,17 @@ public class AdbStream implements Closeable {
      *
      * @param bytes Payload in the form of a byte array
      * @throws IOException          If the stream fails while sending data
-     * @throws InterruptedException If we are unable to wait to send data
      */
-    void write(byte[] bytes, int offset, int length) throws IOException, InterruptedException {
+    public void write(byte[] bytes, int offset, int length) throws IOException {
         synchronized (this) {
             // Make sure we're ready for a WRTE
             while (!mIsClosed && !mWriteReady.compareAndSet(true, false)) {
-                wait();
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    //noinspection UnnecessaryInitCause
+                    throw (IOException) new IOException().initCause(e);
+                }
             }
 
             if (mIsClosed) {
@@ -215,7 +223,13 @@ public class AdbStream implements Closeable {
         //  sent until another READY message has been received.  Recipients of
         //  a WRITE message that is in violation of this requirement will CLOSE
         //  the connection.
-        int maxData = mAdbConnection.getMaxData();
+        int maxData;
+        try {
+            maxData = mAdbConnection.getMaxData();
+        } catch (InterruptedException e) {
+            //noinspection UnnecessaryInitCause
+            throw (IOException) new IOException().initCause(e);
+        }
         while (length != 0) {
             if (length <= maxData) {
                 mAdbConnection.sendPacket(AdbProtocol.generateWrite(mLocalId, mRemoteId, bytes, offset, length));
