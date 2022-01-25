@@ -43,7 +43,7 @@ afterEvaluate {
 dependencies {
     implementation "androidx.annotation:annotation:1.3.0"
     implementation 'org.bouncycastle:bcprov-jdk15on:1.69'
-    implementation 'com.github.MuntashirAkon.spake2-java:android:7ec739b5c4'
+    implementation 'com.github.MuntashirAkon.spake2-java:android:deb2dc9df8'
 
     testImplementation 'junit:junit:4.13.2'
 }

@@ -482,8 +482,9 @@ public class AdbConnection implements Closeable {
             stream.wait();
         }
 
-        // Check if the open was rejected
+        // Check if the OPEN request was rejected
         if (stream.isClosed()) {
+            mOpenedStreams.remove(localId);
             throw new ConnectException("Stream open actively rejected by remote peer.");
         }
 

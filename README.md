@@ -182,10 +182,11 @@ Ethereum: `0xa048a882301d9503d8c27Da8044c4E72dF14C817`
 
 Open Collective: https://opencollective.com/muntashir
 
-
 ## License
 Copyright 2021 Muntashir Al-Islam
 
-Licensed under the GPLv3: https://www.gnu.org/licenses/gpl-3.0.html
+Dual licensed under the terms of [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html) or
+[Apache-2.0 license](https://www.apache.org/licenses/LICENSE-2.0.html). Use whatever license you need for your project.
 
-_It wasn't possible to use a permissive license because it has GPL dependencies. LibADB itself is dual licensed._
+_Note regarding the Apache-2.0 license, this library has an LGPL dependency which may go against the policy of some
+organizations such as ASF._

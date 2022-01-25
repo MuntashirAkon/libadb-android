@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.security.auth.DestroyFailedException;
 
+@SuppressWarnings("unused")
 public abstract class AbsAdbConnectionManager implements Closeable {
     private final Object mLock = new Object();
     @Nullable

@@ -29,8 +29,8 @@ android {
 
 dependencies {
     implementation project(path: ':libadb')
-    implementation 'androidx.appcompat:appcompat:1.4.0'
-    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.google.android.material:material:1.5.0'
 
     // Library to generate X509Certificate. You can also use BouncyCastle for this.
     implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
@@ -38,7 +38,7 @@ dependencies {
     // Bypass hidden API if you want to use Android default conscrypt. It also requires additional steps.
     // See https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about this.
     // Comment out the line below if you do not need this.
-    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.2'
 
     // Uncomment the line below if you want to use the custom conscrypt.
     // implementation 'org.conscrypt:conscrypt-android:2.5.2'

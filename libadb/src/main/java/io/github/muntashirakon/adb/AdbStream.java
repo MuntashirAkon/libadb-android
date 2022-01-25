@@ -124,7 +124,7 @@ public class AdbStream implements Closeable {
     void notifyClose(boolean closedByPeer) {
         // We don't call close() because it sends another CLSE
         if (closedByPeer && !mReadQueue.isEmpty()) {
-            // The remote peer closed the stream but we haven't finished reading the remaining data
+            // The remote peer closed the stream, but we haven't finished reading the remaining data
             mPendingClose = true;
         } else {
             mIsClosed = true;
@@ -143,7 +143,7 @@ public class AdbStream implements Closeable {
      * Read bytes from the ADB daemon.
      *
      * @return the next byte of data, or {@code -1} if the end of the stream is reached.
-     * @throws IOException          If the stream fails while waiting
+     * @throws IOException If the stream fails while waiting
      */
     public int read(byte[] bytes, int offset, int length) throws IOException {
         if (mReadBuffer.hasRemaining()) {
@@ -199,7 +199,7 @@ public class AdbStream implements Closeable {
      * Sends a WRTE packet with a given byte array payload. It does not flush the stream.
      *
      * @param bytes Payload in the form of a byte array
-     * @throws IOException          If the stream fails while sending data
+     * @throws IOException If the stream fails while sending data
      */
     public void write(byte[] bytes, int offset, int length) throws IOException {
         synchronized (this) {
@@ -281,9 +281,7 @@ public class AdbStream implements Closeable {
     /**
      * Returns an estimate of available data.
      *
-     * @return  an estimate of the number of bytes that can be read from this
-     *          stream without blocking.
-     *
+     * @return an estimate of the number of bytes that can be read from this stream without blocking.
      * @throws IOException if the stream is close.
      */
     public int available() throws IOException {
