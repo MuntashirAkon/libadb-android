@@ -63,11 +63,11 @@ public class MyAwesomeApp extends Application {
 }
 ```
 
-**Notice:** Conscrypt only supports API 9 (Gingerbread) or later, meaning you cannot use ADB pairing or any TLSv1.3
+**Notice:** Conscrypt supports only API 9 (Gingerbread) or later, meaning you cannot use ADB pairing or any TLSv1.3
 features in API less than 9. The corresponding methods are already annotated properly. So, you don't have to worry about
 compatibility issues that may arise when your app's minimum SDK is set to one of the unsupported versions.
 
-### Connecting to ADB
+### Configuring ADB
 Instead of doing everything manually, you can create a concrete implementation of the `AbsAdbConnectionManager` class. 
 Example:
 
@@ -150,7 +150,17 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
 }
 ```
 
-Then, you can simply connect to ADB daemon by invoking `AdbConnectionManager.getInstance().connect(host, port)`.
+### Connecting to ADB
+
+You can connect to ADB in several ways from the `AbsAdbConnectionManager`:
+
+| Method                 | Description
+| ---------------------- | -----------
+| `connect(host, port)`  | Connect using a host address and a port number
+| `connect(port)`        | Connect using a host address set by `setHostAddress()` and a port number
+| `connectTcp(Context)`  | (SDK 16+) Discover host address and port number automatically for ADB over TCP and connect to it 
+| `connectTls(Context)`  | (SDK 16+) Discover host address and port number automatically for TLS (from Android 9) and connect to it
+| `autoConnect(Context)` | (SDK 16+) Discover host address and port number automatically for both ADB over TCP and TLS and connect to it
 
 ### Wireless Debugging
 Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging requires an extra step of

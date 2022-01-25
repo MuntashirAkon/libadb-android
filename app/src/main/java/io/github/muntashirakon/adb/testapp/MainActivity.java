@@ -133,6 +133,7 @@ public class MainActivity extends AppCompatActivity {
         });
         viewModel.watchCommandOutput().observe(this, output ->
                 commandOutput.setText(output == null ? "" : output));
+        viewModel.autoConnect();
     }
 
     public static class MainViewModel extends AndroidViewModel {
@@ -199,6 +200,10 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        public void autoConnect() {
+            executor.submit(this::autoConnectInternal);
+        }
+
         public void disconnect() {
             executor.submit(() -> {
                 try {
@@ -212,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        private void pair(int port, String pairingCode) {
+        public void pair(int port, String pairingCode) {
             executor.submit(() -> {
                 try {
                     boolean pairingStatus;
@@ -221,11 +226,29 @@ public class MainActivity extends AppCompatActivity {
                         pairingStatus = manager.pair(getHostIpAddress(getApplication()), port, pairingCode);
                     } else pairingStatus = false;
                     pairAdb.postValue(pairingStatus);
+                    autoConnectInternal();
                 } catch (Throwable th) {
                     th.printStackTrace();
                     pairAdb.postValue(false);
                 }
             });
+        }
+
+        @WorkerThread
+        private void autoConnectInternal() {
+            try {
+                AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
+                boolean connectionStatus;
+                try {
+                    connectionStatus = manager.autoConnect(getApplication());
+                } catch (Throwable th) {
+                    th.printStackTrace();
+                    connectionStatus = false;
+                }
+                connectAdb.postValue(connectionStatus);
+            } catch (Throwable th) {
+                th.printStackTrace();
+            }
         }
 
         private volatile boolean clearEnabled;
@@ -273,7 +296,7 @@ public class MainActivity extends AppCompatActivity {
         private static String getHostIpAddress(@NonNull Context context) {
             if (isEmulator(context)) return "10.0.2.2";
             String ipAddress = Inet4Address.getLoopbackAddress().getHostAddress();
-            if (ipAddress.equals("::1")) return "127.0.0.1";
+            if (ipAddress == null || ipAddress.equals("::1")) return "127.0.0.1";
             return ipAddress;
         }
 

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.muntashirakon'
-version = '1.0.1'
+version = '2.1.0'
 
 android {
     compileSdkVersion 31

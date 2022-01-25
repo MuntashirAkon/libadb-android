@@ -1,2 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 -->
-<manifest package="io.github.muntashirakon.adb" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.muntashirakon.adb">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

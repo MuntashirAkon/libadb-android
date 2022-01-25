@@ -2,6 +2,7 @@
 
 package io.github.muntashirakon.adb;
 
+import android.content.Context;
 import android.os.Build;
 
 import androidx.annotation.CallSuper;
@@ -16,9 +17,14 @@ import java.io.UnsupportedEncodingException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.security.auth.DestroyFailedException;
+
+import io.github.muntashirakon.adb.android.AdbMdns;
 
 @SuppressWarnings("unused")
 public abstract class AbsAdbConnectionManager implements Closeable {
@@ -159,6 +165,148 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     public boolean isConnected() {
         synchronized (mLock) {
             return mAdbConnection != null && mAdbConnection.isConnected() && mAdbConnection.isConnectionEstablished();
+        }
+    }
+
+    /**
+     * Attempt to connect to ADB by performing an automatic network discovery of TLS host and port. Host address set by
+     * {@link #setHostAddress(String)} is ignored.
+     *
+     * @param context Application context
+     * @return {@code true} if and only if the connection is successful. It returns {@code false} if the connection
+     * attempt is unsuccessful, or it has already been made.
+     * @throws IOException                      If the socket connection could not be made.
+     * @throws InterruptedException             If timeout has reached.
+     * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
+     *                                          daemon has rejected the first authentication attempt, which indicates
+     *                                          that the daemon has not saved the public key from a previous connection.
+     */
+    @WorkerThread
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    public boolean connectTls(@NonNull Context context) throws IOException, InterruptedException {
+        return autoConnect(context, AdbMdns.SERVICE_TYPE_TLS_CONNECT);
+    }
+
+    /**
+     * Attempt to connect to ADB by performing an automatic network discovery of TCP host and port. Host address set by
+     * {@link #setHostAddress(String)} is ignored.
+     *
+     * @param context Application context
+     * @return {@code true} if and only if the connection is successful. It returns {@code false} if the connection
+     * attempt is unsuccessful, or it has already been made.
+     * @throws IOException                      If the socket connection could not be made.
+     * @throws InterruptedException             If timeout has reached.
+     * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
+     *                                          daemon has rejected the first authentication attempt, which indicates
+     *                                          that the daemon has not saved the public key from a previous connection.
+     */
+    @WorkerThread
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    public boolean connectTcp(@NonNull Context context) throws IOException, InterruptedException {
+        return autoConnect(context, AdbMdns.SERVICE_TYPE_ADB);
+    }
+
+    /**
+     * Attempt to connect to ADB by performing an automatic network discovery of host and port. Host address set by
+     * {@link #setHostAddress(String)} is ignored.
+     *
+     * @param context Application context
+     * @return {@code true} if and only if the connection is successful. It returns {@code false} if the connection
+     * attempt is unsuccessful, or it has already been made.
+     * @throws IOException                      If the socket connection could not be made.
+     * @throws InterruptedException             If timeout has reached.
+     * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
+     *                                          daemon has rejected the first authentication attempt, which indicates
+     *                                          that the daemon has not saved the public key from a previous connection.
+     */
+    @WorkerThread
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    public boolean autoConnect(@NonNull Context context)
+            throws IOException, InterruptedException {
+        synchronized (mLock) {
+            AtomicInteger atomicPort = new AtomicInteger(-1);
+            AtomicReference<String> atomicHostAddress = new AtomicReference<>(null);
+            CountDownLatch resolveHostAndPort = new CountDownLatch(1);
+
+            AdbMdns adbMdnsTcp = new AdbMdns(context, AdbMdns.SERVICE_TYPE_ADB, (hostAddress, port) -> {
+                atomicHostAddress.set(hostAddress.getHostAddress());
+                atomicPort.set(port);
+                resolveHostAndPort.countDown();
+            });
+            adbMdnsTcp.start();
+
+            AdbMdns adbMdnsTls = new AdbMdns(context, AdbMdns.SERVICE_TYPE_TLS_CONNECT, (hostAddress, port) -> {
+                atomicHostAddress.set(hostAddress.getHostAddress());
+                atomicPort.set(port);
+                resolveHostAndPort.countDown();
+            });
+            adbMdnsTls.start();
+
+            if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+                adbMdnsTcp.stop();
+                adbMdnsTls.stop();
+                throw new InterruptedException("Could not find any valid host address or port within the given moment");
+            }
+            adbMdnsTcp.stop();
+            adbMdnsTls.stop();
+
+            String host = atomicHostAddress.get();
+            int port = atomicPort.get();
+
+            if (host == null || port == -1) {
+                throw new IOException("Could not find any valid host address or port");
+            }
+
+            mOldHostAddress = mHostAddress;
+            mHostAddress = host;
+
+            mAdbConnection = new AdbConnection.Builder(host, port)
+                    .setApi(mApi)
+                    .setKeyPair(getAdbKeyPair())
+                    .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .build();
+            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+        }
+    }
+
+    @WorkerThread
+    @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
+    private boolean autoConnect(@NonNull Context context, @AdbMdns.ServiceType @NonNull String serviceType)
+            throws IOException, InterruptedException {
+        synchronized (mLock) {
+            AtomicInteger atomicPort = new AtomicInteger(-1);
+            AtomicReference<String> atomicHostAddress = new AtomicReference<>(null);
+            CountDownLatch resolveHostAndPort = new CountDownLatch(1);
+
+            AdbMdns adbMdns = new AdbMdns(context, serviceType, (hostAddress, port) -> {
+                atomicHostAddress.set(hostAddress.getHostAddress());
+                atomicPort.set(port);
+                resolveHostAndPort.countDown();
+            });
+            adbMdns.start();
+
+            if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+                adbMdns.stop();
+                throw new InterruptedException("Could not find any valid host address or port within the given moment");
+            }
+            adbMdns.stop();
+
+            String host = atomicHostAddress.get();
+            int port = atomicPort.get();
+
+            if (host == null || port == -1) {
+                throw new IOException("Could not find any valid host address or port");
+            }
+
+            mOldHostAddress = mHostAddress;
+            mHostAddress = host;
+
+            mAdbConnection = new AdbConnection.Builder(host, port)
+                    .setApi(mApi)
+                    .setKeyPair(getAdbKeyPair())
+                    .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .build();
+            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
         }
     }
 
