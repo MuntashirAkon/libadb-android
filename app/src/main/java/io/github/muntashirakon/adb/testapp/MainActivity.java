@@ -35,11 +35,15 @@ import java.io.OutputStream;
 import java.net.Inet4Address;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.muntashirakon.adb.AbsAdbConnectionManager;
 import io.github.muntashirakon.adb.AdbStream;
+import io.github.muntashirakon.adb.android.AdbMdns;
 
 public class MainActivity extends AppCompatActivity {
     private static final int DEFAULT_PORT_ADDRESS = 5555;
@@ -94,6 +98,14 @@ public class MainActivity extends AppCompatActivity {
             View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
             TextInputEditText pairingCodeEditText = view.findViewById(R.id.pairing_code);
             TextInputEditText portNumberEditText = view.findViewById(R.id.port_number);
+            viewModel.watchPairingPort().observe(this, port -> {
+                if (port != -1) {
+                    portNumberEditText.setText(String.valueOf(port));
+                } else {
+                    portNumberEditText.setText(null);
+                }
+            });
+            viewModel.getPairingPort();
             new MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.pair_adb)
                     .setView(view)
@@ -107,6 +119,7 @@ public class MainActivity extends AppCompatActivity {
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, null)
+                    .setOnDismissListener(dialog -> viewModel.watchPairingPort().removeObservers(this))
                     .show();
         });
         runCommandButton.setOnClickListener(v -> {
@@ -141,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
         private final MutableLiveData<Boolean> connectAdb = new MutableLiveData<>();
         private final MutableLiveData<Boolean> pairAdb = new MutableLiveData<>();
         private final MutableLiveData<CharSequence> commandOutput = new MutableLiveData<>();
+        private final MutableLiveData<Integer> pairingPort = new MutableLiveData<>();
 
         @Nullable
         private AdbStream adbShellStream;
@@ -159,6 +173,10 @@ public class MainActivity extends AppCompatActivity {
 
         public LiveData<CharSequence> watchCommandOutput() {
             return commandOutput;
+        }
+
+        public LiveData<Integer> watchPairingPort() {
+            return pairingPort;
         }
 
         @Override
@@ -214,6 +232,30 @@ public class MainActivity extends AppCompatActivity {
                     th.printStackTrace();
                     connectAdb.postValue(true);
                 }
+            });
+        }
+
+        public void getPairingPort() {
+            executor.submit(() -> {
+                AtomicInteger atomicPort = new AtomicInteger(-1);
+                CountDownLatch resolveHostAndPort = new CountDownLatch(1);
+
+                AdbMdns adbMdns = new AdbMdns(getApplication(), AdbMdns.SERVICE_TYPE_TLS_PAIRING, (hostAddress, port) -> {
+                    atomicPort.set(port);
+                    resolveHostAndPort.countDown();
+                });
+                adbMdns.start();
+
+                try {
+                    if (!resolveHostAndPort.await(1, TimeUnit.MINUTES)) {
+                        return;
+                    }
+                } catch (InterruptedException ignore) {
+                } finally {
+                    adbMdns.stop();
+                }
+
+                pairingPort.postValue(atomicPort.get());
             });
         }
 
