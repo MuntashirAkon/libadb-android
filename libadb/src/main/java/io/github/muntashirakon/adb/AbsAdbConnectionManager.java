@@ -242,13 +242,14 @@ public abstract class AbsAdbConnectionManager implements Closeable {
             });
             adbMdnsTls.start();
 
-            if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+            try {
+                if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+                    throw new InterruptedException("Timed out while trying to find a valid host address and port");
+                }
+            } finally {
                 adbMdnsTcp.stop();
                 adbMdnsTls.stop();
-                throw new InterruptedException("Could not find any valid host address or port within the given moment");
             }
-            adbMdnsTcp.stop();
-            adbMdnsTls.stop();
 
             String host = atomicHostAddress.get();
             int port = atomicPort.get();
@@ -285,11 +286,13 @@ public abstract class AbsAdbConnectionManager implements Closeable {
             });
             adbMdns.start();
 
-            if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+            try {
+                if (!resolveHostAndPort.await(mTimeout, mTimeoutUnit)) {
+                    throw new InterruptedException("Timed out while trying to find a valid host address and port");
+                }
+            } finally {
                 adbMdns.stop();
-                throw new InterruptedException("Could not find any valid host address or port within the given moment");
             }
-            adbMdns.stop();
 
             String host = atomicHostAddress.get();
             int port = atomicPort.get();
