@@ -143,7 +143,9 @@ public class MainActivity extends AppCompatActivity {
         });
         viewModel.watchCommandOutput().observe(this, output ->
                 commandOutput.setText(output == null ? "" : output));
-        viewModel.autoConnect();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            viewModel.autoConnect();
+        }
     }
 
     public static class MainViewModel extends AndroidViewModel {
@@ -279,7 +281,7 @@ public class MainActivity extends AppCompatActivity {
                 AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
                 boolean connectionStatus;
                 try {
-                    connectionStatus = manager.autoConnect(getApplication());
+                    connectionStatus = manager.autoConnect(getApplication(), 5000);
                 } catch (Throwable th) {
                     th.printStackTrace();
                     connectionStatus = false;
