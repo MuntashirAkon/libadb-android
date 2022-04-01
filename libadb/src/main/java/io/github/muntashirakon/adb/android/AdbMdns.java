@@ -19,6 +19,7 @@ import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.SocketException;
 import java.util.Collections;
+import java.util.Objects;
 
 /**
  * Automatic discovery of ADB daemons.
@@ -45,6 +46,8 @@ public class AdbMdns {
     }
 
     @NonNull
+    private final Context mContext;
+    @NonNull
     private final String mServiceType;
     @NonNull
     private final OnAdbDaemonDiscoveredListener mAdbDaemonDiscoveredListener;
@@ -58,8 +61,9 @@ public class AdbMdns {
 
     public AdbMdns(@NonNull Context context, @ServiceType @NonNull String serviceType,
                    @NonNull OnAdbDaemonDiscoveredListener portChangeListener) {
-        mServiceType = String.format("_%s._tcp", serviceType);
-        mAdbDaemonDiscoveredListener = portChangeListener;
+        mContext = Objects.requireNonNull(context);
+        mServiceType = String.format("_%s._tcp", Objects.requireNonNull(serviceType));
+        mAdbDaemonDiscoveredListener = Objects.requireNonNull(portChangeListener);
         mNsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
         mDiscoveryListener = new DiscoveryListener(this);
     }
@@ -118,13 +122,7 @@ public class AdbMdns {
 
     private boolean isPortAvailable(int port) {
         try {
-            InetAddress loopbackAddress;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                loopbackAddress = InetAddress.getLoopbackAddress();
-            } else {
-                loopbackAddress = InetAddress.getLocalHost();
-            }
-            new ServerSocket().bind(new InetSocketAddress(loopbackAddress, port), 1);
+            new ServerSocket().bind(new InetSocketAddress(AndroidUtils.getHostIpAddress(mContext), port), 1);
             return false;
         } catch (IOException e) {
             return true;
