@@ -229,15 +229,19 @@ public abstract class AbsAdbConnectionManager implements Closeable {
             CountDownLatch resolveHostAndPort = new CountDownLatch(1);
 
             AdbMdns adbMdnsTcp = new AdbMdns(context, AdbMdns.SERVICE_TYPE_ADB, (hostAddress, port) -> {
-                atomicHostAddress.set(hostAddress.getHostAddress());
-                atomicPort.set(port);
+                if (hostAddress != null) {
+                    atomicHostAddress.set(hostAddress.getHostAddress());
+                    atomicPort.set(port);
+                }
                 resolveHostAndPort.countDown();
             });
             adbMdnsTcp.start();
 
             AdbMdns adbMdnsTls = new AdbMdns(context, AdbMdns.SERVICE_TYPE_TLS_CONNECT, (hostAddress, port) -> {
-                atomicHostAddress.set(hostAddress.getHostAddress());
-                atomicPort.set(port);
+                if (hostAddress != null) {
+                    atomicHostAddress.set(hostAddress.getHostAddress());
+                    atomicPort.set(port);
+                }
                 resolveHostAndPort.countDown();
             });
             adbMdnsTls.start();
@@ -280,8 +284,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
             CountDownLatch resolveHostAndPort = new CountDownLatch(1);
 
             AdbMdns adbMdns = new AdbMdns(context, serviceType, (hostAddress, port) -> {
-                atomicHostAddress.set(hostAddress.getHostAddress());
-                atomicPort.set(port);
+                if (hostAddress != null) {
+                    atomicHostAddress.set(hostAddress.getHostAddress());
+                    atomicPort.set(port);
+                }
                 resolveHostAndPort.countDown();
             });
             adbMdns.start();

@@ -42,7 +42,7 @@ public class AdbMdns {
     }
 
     public interface OnAdbDaemonDiscoveredListener {
-        void onPortChanged(@NonNull InetAddress hostAddress, int port);
+        void onPortChanged(@Nullable InetAddress hostAddress, int port);
     }
 
     @NonNull
