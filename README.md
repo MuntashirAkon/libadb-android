@@ -154,13 +154,13 @@ public class AdbConnectionManager extends AbsAdbConnectionManager {
 
 You can connect to ADB in several ways from the `AbsAdbConnectionManager`:
 
-| Method                 | Description
-| ---------------------- | -----------
-| `connect(host, port)`  | Connect using a host address and a port number
-| `connect(port)`        | Connect using a host address set by `setHostAddress()` and a port number
-| `connectTcp(Context)`  | (SDK 16+) Discover host address and port number automatically for ADB over TCP and connect to it 
-| `connectTls(Context)`  | (SDK 16+) Discover host address and port number automatically for TLS (from Android 9) and connect to it
-| `autoConnect(Context)` | (SDK 16+) Discover host address and port number automatically for both ADB over TCP and TLS and connect to it
+| Method                 | Description                                                                                                   |
+|------------------------|---------------------------------------------------------------------------------------------------------------|
+| `connect(host, port)`  | Connect using a host address and a port number                                                                |
+| `connect(port)`        | Connect using a host address set by `setHostAddress()` and a port number                                      |
+| `connectTcp(Context)`  | (SDK 16+) Discover host address and port number automatically for ADB over TCP and connect to it              | 
+| `connectTls(Context)`  | (SDK 16+) Discover host address and port number automatically for TLS (from Android 9) and connect to it      |
+| `autoConnect(Context)` | (SDK 16+) Discover host address and port number automatically for both ADB over TCP and TLS and connect to it |
 
 ### Wireless Debugging
 Internally, ADB over TCP and Wireless Debugging are very similar except Wireless Debugging requires an extra step of
@@ -175,6 +175,10 @@ read), this is not recommended because the shell might be stuck indefinitely for
 
 **NOTE:** If you want to create a full-featured terminal emulator, this approach isn't recommended. Instead, you should
 create a remote service via `app_process` or start an SSH server and connect to it.
+
+### Other services
+You can also use other services via the `AdbConnectionManager#openStream()` methods. See [SERVICES.md](./SERVICES.md)
+for more information.
 
 ## For Java (non-Android) Projects
 It is possible to modify this library to work on non-Android project. But it isn't supported because Spake2-Java only

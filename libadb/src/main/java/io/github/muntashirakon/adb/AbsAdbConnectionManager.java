@@ -406,6 +406,27 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     }
 
     /**
+     * Opens an {@link AdbStream} object corresponding to the specified destination.
+     * This routine will block until the connection completes.
+     *
+     * @param service The service to open. One of the services under {@link LocalServices.Services}.
+     * @param args    Additional arguments supported by the service (see the corresponding constant to learn more).
+     * @return AdbStream object corresponding to the specified destination
+     * @throws UnsupportedEncodingException If the destination cannot be encoded to UTF-8
+     * @throws IOException                  If the stream fails while sending the packet
+     * @throws InterruptedException         If we are unable to wait for the connection to finish
+     */
+    @NonNull
+    public AdbStream openStream(@LocalServices.Services int service, @NonNull String... args) throws IOException, InterruptedException {
+        synchronized (mLock) {
+            if (mAdbConnection != null && mAdbConnection.isConnected()) {
+                return mAdbConnection.open(service, args);
+            }
+            throw new IOException("Not connected to ADB.");
+        }
+    }
+
+    /**
      * Pair with an ADB daemon given port number and pairing code.
      *
      * @param port        Port number
