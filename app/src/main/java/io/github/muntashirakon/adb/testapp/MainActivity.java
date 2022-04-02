@@ -143,9 +143,7 @@ public class MainActivity extends AppCompatActivity {
         });
         viewModel.watchCommandOutput().observe(this, output ->
                 commandOutput.setText(output == null ? "" : output));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            viewModel.autoConnect();
-        }
+        viewModel.autoConnect();
     }
 
     public static class MainViewModel extends AndroidViewModel {
@@ -279,14 +277,20 @@ public class MainActivity extends AppCompatActivity {
         private void autoConnectInternal() {
             try {
                 AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                boolean connectionStatus;
-                try {
-                    connectionStatus = manager.autoConnect(getApplication(), 5000);
-                } catch (Throwable th) {
-                    th.printStackTrace();
-                    connectionStatus = false;
+                boolean connected = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    try {
+                        connected = manager.autoConnect(getApplication(), 5000);
+                    } catch (Throwable th) {
+                        th.printStackTrace();
+                    }
                 }
-                connectAdb.postValue(connectionStatus);
+                if (!connected) {
+                    connected = manager.connect(5555);
+                }
+                if (connected) {
+                    connectAdb.postValue(true);
+                }
             } catch (Throwable th) {
                 th.printStackTrace();
             }

@@ -38,7 +38,7 @@ dependencies {
     // Bypass hidden API if you want to use Android default conscrypt. It also requires additional steps.
     // See https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about this.
     // Comment out the line below if you do not need this.
-    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.2'
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
 
     // Uncomment the line below if you want to use the custom conscrypt.
     // implementation 'org.conscrypt:conscrypt-android:2.5.2'
