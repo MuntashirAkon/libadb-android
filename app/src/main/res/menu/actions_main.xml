@@ -1,0 +1,19 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_connect"
+        android:title="@string/connect_adb"
+        android:icon="@drawable/ic_link"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_disconnect"
+        android:title="@string/disconnect_adb"
+        android:icon="@drawable/ic_link_off"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_pair"
+        android:title="@string/pair_adb"
+        android:icon="@drawable/ic_add_link"
+        app:showAsAction="always" />
+</menu>

@@ -2,52 +2,37 @@
 
 package io.github.muntashirakon.adb.testapp;
 
-import android.app.Application;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.ScrollView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.WorkerThread;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatEditText;
 import androidx.appcompat.widget.AppCompatTextView;
-import androidx.lifecycle.AndroidViewModel;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import io.github.muntashirakon.adb.AbsAdbConnectionManager;
-import io.github.muntashirakon.adb.AdbStream;
-import io.github.muntashirakon.adb.android.AdbMdns;
-import io.github.muntashirakon.adb.android.AndroidUtils;
 
 public class MainActivity extends AppCompatActivity {
     private static final int DEFAULT_PORT_ADDRESS = 5555;
 
-    private MaterialButton connectAdbButton;
-    private MaterialButton pairAdbButton;
-    private MaterialButton runCommandButton;
+    private MenuItem connectAdbMenu;
+    private MenuItem disconnectAdbMenu;
+    private MenuItem pairAdbMenu;
+    private ScrollView scrollView;
+
     private AppCompatEditText commandInput;
     private AppCompatTextView commandOutput;
     private MainViewModel viewModel;
@@ -57,82 +42,34 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setSupportActionBar(findViewById(R.id.toolbar));
         viewModel = new ViewModelProvider(this).get(MainViewModel.class);
-        connectAdbButton = findViewById(R.id.connect_adb);
-        pairAdbButton = findViewById(R.id.pair_adb);
-        runCommandButton = findViewById(R.id.command_run);
+        scrollView = findViewById(R.id.scrollView);
         commandInput = findViewById(R.id.command_input);
         commandOutput = findViewById(R.id.command_output);
         init();
     }
 
     private void init() {
-        connectAdbButton.setOnClickListener(v -> {
-            if (connected) {
-                viewModel.disconnect();
-                return;
+        commandInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE && connected) {
+                String command = Objects.requireNonNull(commandInput.getText()).toString();
+                viewModel.execute(command);
+                return true;
             }
-            AppCompatEditText editText = new AppCompatEditText(this);
-            editText.setInputType(InputType.TYPE_CLASS_NUMBER);
-            editText.setText(String.valueOf(DEFAULT_PORT_ADDRESS));
-            new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.connect_adb)
-                    .setView(editText)
-                    .setPositiveButton(R.string.connect, (dialog, which) -> {
-                        CharSequence portString = editText.getText();
-                        if (portString != null && TextUtils.isDigitsOnly(portString)) {
-                            int port = Integer.parseInt(portString.toString());
-                            viewModel.connect(port);
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show();
+            return false;
         });
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            pairAdbButton.setVisibility(View.GONE);
-        }
-        pairAdbButton.setOnClickListener(v -> {
-            View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
-            TextInputEditText pairingCodeEditText = view.findViewById(R.id.pairing_code);
-            TextInputEditText portNumberEditText = view.findViewById(R.id.port_number);
-            viewModel.watchPairingPort().observe(this, port -> {
-                if (port != -1) {
-                    portNumberEditText.setText(String.valueOf(port));
-                } else {
-                    portNumberEditText.setText(null);
-                }
-            });
-            viewModel.getPairingPort();
-            new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.pair_adb)
-                    .setView(view)
-                    .setPositiveButton(R.string.pair, (dialog, which) -> {
-                        CharSequence pairingCode = pairingCodeEditText.getText();
-                        CharSequence portNumberString = portNumberEditText.getText();
-                        if (pairingCode != null && pairingCode.length() == 6 && portNumberString != null
-                                && TextUtils.isDigitsOnly(portNumberString)) {
-                            int port = Integer.parseInt(portNumberString.toString());
-                            viewModel.pair(port, pairingCode.toString());
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setOnDismissListener(dialog -> viewModel.watchPairingPort().removeObservers(this))
-                    .show();
-        });
-        runCommandButton.setOnClickListener(v -> {
-            String command = Objects.requireNonNull(commandInput.getText()).toString();
-            viewModel.execute(command);
-        });
+
+        // Observers
         viewModel.watchConnectAdb().observe(this, isConnected -> {
             connected = isConnected;
+            checkMenus();
             if (isConnected) {
                 Toast.makeText(this, getString(R.string.connected_to_adb), Toast.LENGTH_SHORT).show();
-                connectAdbButton.setText(R.string.disconnect_adb);
+                openIme();
             } else {
                 Toast.makeText(this, getString(R.string.disconnected_from_adb), Toast.LENGTH_SHORT).show();
-                connectAdbButton.setText(R.string.connect_adb);
             }
-            runCommandButton.setEnabled(isConnected);
         });
         viewModel.watchPairAdb().observe(this, isPaired -> {
             if (isPaired) {
@@ -141,199 +78,134 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, getString(R.string.pairing_failed), Toast.LENGTH_SHORT).show();
             }
         });
-        viewModel.watchCommandOutput().observe(this, output ->
-                commandOutput.setText(output == null ? "" : output));
+        viewModel.watchCommandOutput().observe(this, output -> {
+            commandOutput.setText(output == null ? "" : output);
+            commandOutput.post(() -> scrollView.scrollTo(0, commandOutput.getHeight()));
+        });
+
+        // Try auto-connecting
         viewModel.autoConnect();
     }
 
-    public static class MainViewModel extends AndroidViewModel {
-        private final ExecutorService executor = Executors.newFixedThreadPool(3);
-        private final MutableLiveData<Boolean> connectAdb = new MutableLiveData<>();
-        private final MutableLiveData<Boolean> pairAdb = new MutableLiveData<>();
-        private final MutableLiveData<CharSequence> commandOutput = new MutableLiveData<>();
-        private final MutableLiveData<Integer> pairingPort = new MutableLiveData<>();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        openIme();
+    }
 
-        @Nullable
-        private AdbStream adbShellStream;
-
-        public MainViewModel(@NonNull Application application) {
-            super(application);
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (connected && commandInput != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(commandInput.getWindowToken(), 0);
         }
+    }
 
-        public LiveData<Boolean> watchConnectAdb() {
-            return connectAdb;
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.actions_main, menu);
+        connectAdbMenu = menu.findItem(R.id.action_connect);
+        disconnectAdbMenu = menu.findItem(R.id.action_disconnect);
+        pairAdbMenu = menu.findItem(R.id.action_pair);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        if (pairAdbMenu != null) {
+            pairAdbMenu.setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+            pairAdbMenu.setVisible(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
         }
+        checkMenus();
+        return super.onPrepareOptionsMenu(menu);
+    }
 
-        public LiveData<Boolean> watchPairAdb() {
-            return pairAdb;
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_connect) {
+            connectAdb();
+            return true;
         }
-
-        public LiveData<CharSequence> watchCommandOutput() {
-            return commandOutput;
+        if (id == R.id.action_disconnect) {
+            connectAdb();
+            return true;
         }
-
-        public LiveData<Integer> watchPairingPort() {
-            return pairingPort;
+        if (id == R.id.action_pair) {
+            pairAdb();
+            return true;
         }
+        return super.onOptionsItemSelected(item);
+    }
 
-        @Override
-        protected void onCleared() {
-            super.onCleared();
-            executor.submit(() -> {
-                try {
-                    if (adbShellStream != null) {
-                        adbShellStream.close();
+    private void openIme() {
+        if (connected && commandInput != null && !commandInput.isFocused()) {
+            commandInput.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            imm.showSoftInput(commandInput, InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void checkMenus() {
+        if (connectAdbMenu != null) {
+            connectAdbMenu.setEnabled(!connected);
+            connectAdbMenu.setVisible(!connected);
+        }
+        if (disconnectAdbMenu != null) {
+            disconnectAdbMenu.setEnabled(connected);
+            disconnectAdbMenu.setVisible(connected);
+        }
+    }
+
+    private void connectAdb() {
+        if (connected) {
+            viewModel.disconnect();
+            return;
+        }
+        AppCompatEditText editText = new AppCompatEditText(this);
+        editText.setInputType(InputType.TYPE_CLASS_NUMBER);
+        editText.setText(String.valueOf(DEFAULT_PORT_ADDRESS));
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.connect_adb)
+                .setView(editText)
+                .setPositiveButton(R.string.connect_adb, (dialog, which) -> {
+                    CharSequence portString = editText.getText();
+                    if (portString != null && TextUtils.isDigitsOnly(portString)) {
+                        int port = Integer.parseInt(portString.toString());
+                        viewModel.connect(port);
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                try {
-                    AdbConnectionManager.getInstance(getApplication()).close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            executor.shutdown();
-        }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
 
-        public void connect(int port) {
-            executor.submit(() -> {
-                try {
-                    AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                    boolean connectionStatus;
-                    try {
-                        connectionStatus = manager.connect(AndroidUtils.getHostIpAddress(getApplication()), port);
-                    } catch (Throwable th) {
-                        th.printStackTrace();
-                        connectionStatus = false;
-                    }
-                    connectAdb.postValue(connectionStatus);
-                } catch (Throwable th) {
-                    th.printStackTrace();
-                    connectAdb.postValue(false);
-                }
-            });
-        }
-
-        public void autoConnect() {
-            executor.submit(this::autoConnectInternal);
-        }
-
-        public void disconnect() {
-            executor.submit(() -> {
-                try {
-                    AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                    manager.disconnect();
-                    connectAdb.postValue(false);
-                } catch (Throwable th) {
-                    th.printStackTrace();
-                    connectAdb.postValue(true);
-                }
-            });
-        }
-
-        public void getPairingPort() {
-            executor.submit(() -> {
-                AtomicInteger atomicPort = new AtomicInteger(-1);
-                CountDownLatch resolveHostAndPort = new CountDownLatch(1);
-
-                AdbMdns adbMdns = new AdbMdns(getApplication(), AdbMdns.SERVICE_TYPE_TLS_PAIRING, (hostAddress, port) -> {
-                    atomicPort.set(port);
-                    resolveHostAndPort.countDown();
-                });
-                adbMdns.start();
-
-                try {
-                    if (!resolveHostAndPort.await(1, TimeUnit.MINUTES)) {
-                        return;
-                    }
-                } catch (InterruptedException ignore) {
-                } finally {
-                    adbMdns.stop();
-                }
-
-                pairingPort.postValue(atomicPort.get());
-            });
-        }
-
-        public void pair(int port, String pairingCode) {
-            executor.submit(() -> {
-                try {
-                    boolean pairingStatus;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                        pairingStatus = manager.pair(AndroidUtils.getHostIpAddress(getApplication()), port, pairingCode);
-                    } else pairingStatus = false;
-                    pairAdb.postValue(pairingStatus);
-                    autoConnectInternal();
-                } catch (Throwable th) {
-                    th.printStackTrace();
-                    pairAdb.postValue(false);
-                }
-            });
-        }
-
-        @WorkerThread
-        private void autoConnectInternal() {
-            try {
-                AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                boolean connected = false;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    try {
-                        connected = manager.autoConnect(getApplication(), 5000);
-                    } catch (Throwable th) {
-                        th.printStackTrace();
-                    }
-                }
-                if (!connected) {
-                    connected = manager.connect(5555);
-                }
-                if (connected) {
-                    connectAdb.postValue(true);
-                }
-            } catch (Throwable th) {
-                th.printStackTrace();
+    private void pairAdb() {
+        View view = getLayoutInflater().inflate(R.layout.dialog_input, null);
+        TextInputEditText pairingCodeEditText = view.findViewById(R.id.pairing_code);
+        TextInputEditText portNumberEditText = view.findViewById(R.id.port_number);
+        viewModel.watchPairingPort().observe(this, port -> {
+            if (port != -1) {
+                portNumberEditText.setText(String.valueOf(port));
+            } else {
+                portNumberEditText.setText(null);
             }
-        }
-
-        private volatile boolean clearEnabled;
-        private final Runnable outputGenerator = () -> {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(adbShellStream.openInputStream()))) {
-                StringBuilder sb = new StringBuilder();
-                String s;
-                while ((s = reader.readLine()) != null) {
-                    if (clearEnabled) {
-                        sb.delete(0, sb.length());
-                        clearEnabled = false;
+        });
+        viewModel.getPairingPort();
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.pair_adb)
+                .setView(view)
+                .setPositiveButton(R.string.pair_adb, (dialog, which) -> {
+                    CharSequence pairingCode = pairingCodeEditText.getText();
+                    CharSequence portNumberString = portNumberEditText.getText();
+                    if (pairingCode != null && pairingCode.length() == 6 && portNumberString != null
+                            && TextUtils.isDigitsOnly(portNumberString)) {
+                        int port = Integer.parseInt(portNumberString.toString());
+                        viewModel.pair(port, pairingCode.toString());
                     }
-                    sb.append(s).append("\n");
-                    commandOutput.postValue(sb);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        };
-
-        private void execute(String command) {
-            executor.submit(() -> {
-                try {
-                    if (adbShellStream == null || adbShellStream.isClosed()) {
-                        AbsAdbConnectionManager manager = AdbConnectionManager.getInstance(getApplication());
-                        adbShellStream = manager.openStream("shell:");
-                        new Thread(outputGenerator).start();
-                    }
-                    if (command.equals("clear")) {
-                        clearEnabled = true;
-                    }
-                    try (OutputStream os = adbShellStream.openOutputStream()) {
-                        os.write(String.format("%1$s\n", command).getBytes(StandardCharsets.UTF_8));
-                        os.flush();
-                        os.write("\n".getBytes(StandardCharsets.UTF_8));
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-        }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .setOnDismissListener(dialog -> viewModel.watchPairingPort().removeObservers(this))
+                .show();
     }
 }

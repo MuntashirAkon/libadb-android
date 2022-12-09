@@ -1,53 +1,67 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context=".MainActivity">
 
-    <androidx.appcompat.widget.LinearLayoutCompat
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingVertical="8dp"
-        android:paddingHorizontal="16dp">
+        android:layout_height="wrap_content">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/connect_adb"
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/connect_adb" />
+            tools:menu="@menu/actions_main" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/pair_adb"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/pair_adb" />
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <androidx.appcompat.widget.AppCompatEditText
-            android:id="@+id/command_input"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/enter_command"
-            android:inputType="textNoSuggestions"
-            android:fontFamily="monospace"
-            android:maxLines="1" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/command_run"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:enabled="false"
-            android:text="@string/run_command" />
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="?actionBarSize"
+        app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior">
 
         <androidx.appcompat.widget.AppCompatTextView
             android:id="@+id/command_output"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:paddingVertical="8dp"
+            android:paddingHorizontal="16dp"
             android:textIsSelectable="true"
             android:fontFamily="monospace"
+            android:textSize="12sp"
             tools:text="Command output" />
+    </ScrollView>
 
-    </androidx.appcompat.widget.LinearLayoutCompat>
-</ScrollView>
+    <com.google.android.material.bottomappbar.BottomAppBar
+        android:layout_width="match_parent"
+        android:layout_height="?actionBarSize"
+        android:layout_gravity="bottom"
+        app:navigationIcon="@null">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingEnd="8dp"
+            android:hint="@string/enter_command"
+            app:endIconMode="clear_text"
+            tools:ignore="RtlSymmetry">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/command_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textNoSuggestions"
+                android:fontFamily="monospace"
+                android:maxLines="1"
+                android:imeOptions="actionDone" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </com.google.android.material.bottomappbar.BottomAppBar>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

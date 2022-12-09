@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later OR Apache-2.0 -->
 <resources>
     <string name="app_name">ADB Shell</string>
-    <string name="connect_adb">Connect ADB</string>
-    <string name="pair_adb">Pair ADB</string>
+    <string name="connect_adb">Connect</string>
+    <string name="pair_adb">Pair</string>
     <string name="enter_command">Enter command</string>
     <string name="run_command">Run</string>
     <string name="pairing_successful">Pairing successful!</string>
@@ -10,8 +10,6 @@
     <string name="connected_to_adb">Connected to ADB!</string>
     <string name="disconnected_from_adb">Disconnected from ADB!</string>
     <string name="disconnect_adb">Disconnect</string>
-    <string name="connect">Connect</string>
     <string name="pairing_code">Pairing Code</string>
     <string name="port_number">Port Number</string>
-    <string name="pair">Pair</string>
 </resources>
