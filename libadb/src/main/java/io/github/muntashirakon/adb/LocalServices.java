@@ -2,6 +2,8 @@
 
 package io.github.muntashirakon.adb;
 
+import android.text.TextUtils;
+
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 
@@ -10,6 +12,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.Objects;
 
 
+/**
+ * Local services extracted from the <a href="https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/client/commandline.cpp">ADB client</a>
+ * for easy access.
+ */
 public class LocalServices {
     static final int SERVICE_FIRST = 1;
 
@@ -87,8 +93,25 @@ public class LocalServices {
      * </ul>
      */
     public static final int REVERSE = 13;
+    /**
+     * Backup some or all packages installed in the device. For this to work, {@code allowBackup=true} must be present
+     * in the application section of the AndroidManifest.xml of the app.
+     * <p>
+     * It takes additional arguments which can be one of the following:
+     * <ul>
+     * <li>List of packages (as array)
+     * <li>{@code -all}
+     * <li>{@code -shared}
+     * </ul>
+     * Output is a stream which is in zlib format with 24 bytes at the front (if unencrypted).
+     */
+    public static final int BACKUP = 14;
+    /**
+     * Restore a backup. Input is a stream which is in zlib format with 24 bytes at the front (if unencrypted).
+     */
+    public static final int RESTORE = 15;
 
-    static final int SERVICE_LAST = 13;
+    static final int SERVICE_LAST = 15;
 
     @IntDef({
             SHELL,
@@ -104,6 +127,8 @@ public class LocalServices {
             TRACK_JDWP,
             SYNC,
             REVERSE,
+            BACKUP,
+            RESTORE,
     })
     @Retention(RetentionPolicy.CLASS)
     public @interface Services {
@@ -138,6 +163,10 @@ public class LocalServices {
                 return "tcp:";
             case TRACK_JDWP:
                 return "track-jdwp";
+            case BACKUP:
+                return "backup:";
+            case RESTORE:
+                return "restore:";
             default:
                 throw new IllegalArgumentException("Invalid service: " + service);
         }
@@ -220,11 +249,15 @@ public class LocalServices {
                     throw new IllegalArgumentException("Invalid forward command.");
                 }
                 break;
+            case BACKUP:
+                if (args.length == 0) {
+                    throw new IllegalArgumentException("At least one package must be specified or use -shared/-all.");
+                }
             case REMOUNT:
                 // Additional arguments for the commands
-                for (String arg : args) {
-                    destination.append(Objects.requireNonNull(arg)).append(" ");
-                }
+                destination.append(TextUtils.join(" ", args));
+                break;
+            case RESTORE:
             case FRAMEBUFFER:
             case SYNC:
             case TRACK_JDWP:
