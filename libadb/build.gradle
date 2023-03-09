@@ -9,11 +9,11 @@ group = 'io.github.muntashirakon'
 version = '2.2.2'
 
 android {
-    compileSdk 33
+    compileSdk 32
 
     defaultConfig {
         minSdk 1
-        targetSdk 33
+        targetSdk 32
     }
 
     buildTypes {
