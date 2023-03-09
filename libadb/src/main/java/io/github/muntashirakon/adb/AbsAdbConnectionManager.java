@@ -32,7 +32,6 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @Nullable
     private AdbConnection mAdbConnection;
     private String mHostAddress = "127.0.0.1";
-    private String mOldHostAddress = mHostAddress;
     private int mApi = Build.VERSION_CODES.BASE;
     private long mTimeout = Long.MAX_VALUE;
     private TimeUnit mTimeoutUnit = TimeUnit.MILLISECONDS;
@@ -61,8 +60,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      */
     @CallSuper
     public void setHostAddress(@NonNull String hostAddress) {
-        this.mOldHostAddress = mHostAddress;
-        this.mHostAddress = Objects.requireNonNull(hostAddress);
+        mHostAddress = Objects.requireNonNull(hostAddress);
     }
 
     /**
@@ -98,8 +96,8 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      */
     @CallSuper
     public void setTimeout(long timeout, TimeUnit unit) {
-        this.mTimeout = timeout;
-        this.mTimeoutUnit = unit;
+        mTimeout = timeout;
+        mTimeoutUnit = unit;
     }
 
     /**
@@ -130,7 +128,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      */
     @CallSuper
     public void setThrowOnUnauthorised(boolean throwOnUnauthorised) {
-        this.mThrowOnUnauthorised = throwOnUnauthorised;
+        mThrowOnUnauthorised = throwOnUnauthorised;
     }
 
     /**
@@ -265,9 +263,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                 throw new IOException("Could not find any valid host address or port");
             }
 
-            mOldHostAddress = mHostAddress;
             mHostAddress = host;
-
             mAdbConnection = new AdbConnection.Builder(host, port)
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
@@ -310,9 +306,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                 throw new IOException("Could not find any valid host address or port");
             }
 
-            mOldHostAddress = mHostAddress;
             mHostAddress = host;
-
             mAdbConnection = new AdbConnection.Builder(host, port)
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
@@ -337,7 +331,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @WorkerThread
     public boolean connect(int port) throws IOException, InterruptedException {
         synchronized (mLock) {
-            if (needNoNewConnection()) {
+            if (isConnected()) {
                 return false;
             }
             mAdbConnection = new AdbConnection.Builder(mHostAddress, port)
@@ -366,8 +360,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @WorkerThread
     public boolean connect(@NonNull String host, int port) throws IOException, InterruptedException {
         synchronized (mLock) {
-            mOldHostAddress = mHostAddress;
-            if (needNoNewConnection()) {
+            if (isConnected()) {
                 return false;
             }
             mHostAddress = host;
@@ -462,13 +455,15 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @WorkerThread
     @RequiresApi(Build.VERSION_CODES.GINGERBREAD)
     public boolean pair(@NonNull String host, int port, @NonNull String pairingCode) throws Exception {
-        KeyPair keyPair = getAdbKeyPair();
-        try (PairingConnectionCtx pairingClient = new PairingConnectionCtx(Objects.requireNonNull(host), port,
-                StringCompat.getBytes(Objects.requireNonNull(pairingCode), "UTF-8"), keyPair, getDeviceName())) {
-            // TODO: 5/12/21 Return true/false instead of only exceptions
-            pairingClient.start();
+        synchronized (mLock) {
+            KeyPair keyPair = getAdbKeyPair();
+            try (PairingConnectionCtx pairingClient = new PairingConnectionCtx(Objects.requireNonNull(host), port,
+                    StringCompat.getBytes(Objects.requireNonNull(pairingCode), "UTF-8"), keyPair, getDeviceName())) {
+                // TODO: 5/12/21 Return true/false instead of only exceptions
+                pairingClient.start();
+            }
+            return true;
         }
-        return true;
     }
 
     /**
@@ -492,11 +487,5 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @NonNull
     private KeyPair getAdbKeyPair() {
         return new KeyPair(Objects.requireNonNull(getPrivateKey()), Objects.requireNonNull(getCertificate()));
-    }
-
-    private boolean needNoNewConnection() {
-        synchronized (mLock) {
-            return mAdbConnection != null && mAdbConnection.isConnected();
-        }
     }
 }
