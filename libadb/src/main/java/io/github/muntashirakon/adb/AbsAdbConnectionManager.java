@@ -337,7 +337,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @WorkerThread
     public boolean connect(int port) throws IOException, InterruptedException {
         synchronized (mLock) {
-            if (needNoNewConnection(mHostAddress)) {
+            if (needNoNewConnection()) {
                 return false;
             }
             mAdbConnection = new AdbConnection.Builder(mHostAddress, port)
@@ -367,9 +367,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     public boolean connect(@NonNull String host, int port) throws IOException, InterruptedException {
         synchronized (mLock) {
             mOldHostAddress = mHostAddress;
-            if (needNoNewConnection(Objects.requireNonNull(host))) {
+            if (needNoNewConnection()) {
                 return false;
             }
+            mHostAddress = host;
             mAdbConnection = new AdbConnection.Builder(host, port)
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
@@ -493,11 +494,9 @@ public abstract class AbsAdbConnectionManager implements Closeable {
         return new KeyPair(Objects.requireNonNull(getPrivateKey()), Objects.requireNonNull(getCertificate()));
     }
 
-    private boolean needNoNewConnection(@NonNull String newHostAddress) {
+    private boolean needNoNewConnection() {
         synchronized (mLock) {
-            if (mAdbConnection == null) return false;
-            if (mAdbConnection.isConnected()) return true;
-            return newHostAddress.equals(mOldHostAddress);
+            return mAdbConnection != null && mAdbConnection.isConnected();
         }
     }
 }
