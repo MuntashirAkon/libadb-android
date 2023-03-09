@@ -28,8 +28,8 @@ android {
 
 dependencies {
     implementation project(path: ':libadb')
-    implementation 'androidx.appcompat:appcompat:1.5.1'
-    implementation 'com.google.android.material:material:1.7.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
 
     // Library to generate X509Certificate. You can also use BouncyCastle for this.
     implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
