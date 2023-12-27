@@ -345,6 +345,7 @@ public class AdbConnection implements Closeable {
             synchronized (AdbConnection.this) {
                 cleanupStreams();
                 AdbConnection.this.notifyAll();
+                mConnectionEstablished = false;
                 mConnectAttempted = false;
             }
         });
