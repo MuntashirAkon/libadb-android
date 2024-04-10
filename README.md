@@ -189,15 +189,8 @@ Spake2 library for your platforms.
 By contributing to this project, you permit your work to be released under the terms of GNU General Public License, 
 Version 3 or later **or** Apache License, Version 2.0.
 
-### Donating
-Bitcoin: `3FHTxPoYa92dNJK6pkhwyVkMG8Vv3VpGpg`
-
-Ethereum: `0xa048a882301d9503d8c27Da8044c4E72dF14C817`
-
-Open Collective: https://opencollective.com/muntashir
-
 ## License
-Copyright 2021 Muntashir Al-Islam
+Copyright 2021 &copy; Muntashir Al-Islam
 
 Dual licensed under the terms of [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html) or
 [Apache-2.0 license](https://www.apache.org/licenses/LICENSE-2.0.html). Use whatever license you need for your project.
