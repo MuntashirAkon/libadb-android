@@ -108,6 +108,12 @@ public class AdbConnection implements Closeable {
     private volatile boolean mConnectionEstablished;
 
     /**
+     * Exceptions that occur in {@link #createConnectionThread()}.
+     */
+    @Nullable
+    private volatile Exception mConnectionException;
+
+    /**
      * Specifies the maximum amount data that can be sent to the remote peer.
      * This is only valid after connect() returns successfully.
      */
@@ -335,6 +341,7 @@ public class AdbConnection implements Closeable {
                             break;
                     }
                 } catch (Exception e) {
+                    mConnectionException = e;
                     e.printStackTrace();
                     // The cleanup is taken care of by a combination of this thread and close()
                     break;
@@ -379,10 +386,11 @@ public class AdbConnection implements Closeable {
      * and shall be blocked if the connection is in progress.
      *
      * @return The maximum data size indicated in the CONNECT packet.
-     * @throws InterruptedException If a connection cannot be waited on.
-     * @throws IOException          if the connection fails.
+     * @throws InterruptedException        If a connection cannot be waited on.
+     * @throws IOException                 if the connection fails.
+     * @throws AdbPairingRequiredException If ADB lacks pairing
      */
-    public int getMaxData() throws InterruptedException, IOException {
+    public int getMaxData() throws InterruptedException, IOException, AdbPairingRequiredException {
         if (!mConnectAttempted) {
             throw new IllegalStateException("connect() must be called first");
         }
@@ -412,10 +420,11 @@ public class AdbConnection implements Closeable {
      * fails.
      *
      * @return {@code true} if the connection was established, or {@code false} if the connection timed out
-     * @throws IOException          If the socket fails while connecting
-     * @throws InterruptedException If timeout has reached
+     * @throws IOException                 If the socket fails while connecting
+     * @throws InterruptedException        If timeout has reached
+     * @throws AdbPairingRequiredException If ADB lacks pairing
      */
-    public boolean connect() throws IOException, InterruptedException {
+    public boolean connect() throws IOException, InterruptedException, AdbPairingRequiredException {
         return connect(Long.MAX_VALUE, TimeUnit.MILLISECONDS, false);
     }
 
@@ -432,9 +441,10 @@ public class AdbConnection implements Closeable {
      * @throws AdbAuthenticationFailedException If {@code throwOnUnauthorised} is {@code true} and the peer rejects the
      *                                          first authentication attempt, which indicates that the peer has not
      *                                          saved the public key from a previous connection
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     public boolean connect(long timeout, @NonNull TimeUnit unit, boolean throwOnUnauthorised)
-            throws IOException, InterruptedException, AdbAuthenticationFailedException {
+            throws IOException, InterruptedException, AdbAuthenticationFailedException, AdbPairingRequiredException {
         if (mConnectionEstablished) {
             throw new IllegalStateException("Already connected");
         }
@@ -461,9 +471,11 @@ public class AdbConnection implements Closeable {
      * @throws UnsupportedEncodingException If the destination cannot be encoded to UTF-8
      * @throws IOException                  If the stream fails while sending the packet
      * @throws InterruptedException         If we are unable to wait for the connection to finish
+     * @throws AdbPairingRequiredException  If ADB lacks pairing
      */
     @NonNull
-    public AdbStream open(@LocalServices.Services int service, @NonNull String... args) throws IOException, InterruptedException {
+    public AdbStream open(@LocalServices.Services int service, @NonNull String... args)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         if (service < LocalServices.SERVICE_FIRST || service > LocalServices.SERVICE_LAST) {
             throw new IllegalArgumentException("Invalid service: " + service);
         }
@@ -479,9 +491,11 @@ public class AdbConnection implements Closeable {
      * @throws UnsupportedEncodingException If the destination cannot be encoded to UTF-8
      * @throws IOException                  If the stream fails while sending the packet
      * @throws InterruptedException         If we are unable to wait for the connection to finish
+     * @throws AdbPairingRequiredException  If ADB lacks pairing
      */
     @NonNull
-    public AdbStream open(@NonNull String destination) throws IOException, InterruptedException {
+    public AdbStream open(@NonNull String destination)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         int localId = ++mLastLocalId;
 
         if (!mConnectAttempted) {
@@ -511,7 +525,8 @@ public class AdbConnection implements Closeable {
         return stream;
     }
 
-    private boolean waitForConnection(long timeout, @NonNull TimeUnit unit) throws InterruptedException, IOException {
+    private boolean waitForConnection(long timeout, @NonNull TimeUnit unit)
+            throws InterruptedException, IOException, AdbPairingRequiredException {
         synchronized (this) {
             // Block if a connection is pending, but not yet complete
             long timeoutEndMillis = System.currentTimeMillis() + Objects.requireNonNull(unit).toMillis(timeout);
@@ -525,7 +540,18 @@ public class AdbConnection implements Closeable {
                 } else if (mAuthorisationFailed) {
                     // The peer may not have saved the public key in the past connections, or they've been removed.
                     throw new AdbAuthenticationFailedException();
-                } else throw new IOException("Connection failed");
+                } else {
+                    Exception connectionException = mConnectionException;
+                    if (connectionException != null) {
+                        if (connectionException instanceof javax.net.ssl.SSLProtocolException) {
+                            String message = connectionException.getMessage();
+                            if (message != null && message.contains("protocol error")) {
+                                throw (AdbPairingRequiredException) (new AdbPairingRequiredException("ADB pairing is required.").initCause(connectionException));
+                            }
+                        }
+                    }
+                    throw new IOException("Connection failed");
+                }
             }
         }
 
@@ -684,10 +710,11 @@ public class AdbConnection implements Closeable {
          * attempt fails.
          *
          * @return The underlying {@link AdbConnection}
-         * @throws IOException          If the socket fails while connecting
-         * @throws InterruptedException If timeout has reached
+         * @throws IOException                 If the socket fails while connecting
+         * @throws InterruptedException        If timeout has reached
+         * @throws AdbPairingRequiredException If ADB lacks pairing
          */
-        public AdbConnection connect() throws IOException, InterruptedException {
+        public AdbConnection connect() throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
             if (adbConnection.connect()) {
                 throw new IOException("Unable to establish a new connection.");
@@ -708,9 +735,10 @@ public class AdbConnection implements Closeable {
          * @throws AdbAuthenticationFailedException If {@code throwOnUnauthorised} is {@code true} and the peer rejects
          *                                          the first authentication attempt, which indicates that the peer has
          *                                          not saved the public key from a previous connection
+         * @throws AdbPairingRequiredException      If ADB lacks pairing
          */
         public AdbConnection connect(long timeout, @NonNull TimeUnit unit, boolean throwOnUnauthorised)
-                throws IOException, InterruptedException {
+                throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
             if (adbConnection.connect(timeout, unit, throwOnUnauthorised)) {
                 throw new IOException("Unable to establish a new connection.");

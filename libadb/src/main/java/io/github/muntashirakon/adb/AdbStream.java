@@ -62,7 +62,8 @@ public class AdbStream implements Closeable {
      * @param adbConnection AdbConnection that this stream is running on
      * @param localId       Local ID of the stream
      */
-    AdbStream(AdbConnection adbConnection, int localId) throws IOException, InterruptedException {
+    AdbStream(AdbConnection adbConnection, int localId)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         this.mAdbConnection = adbConnection;
         this.mLocalId = localId;
         this.mReadQueue = new ConcurrentLinkedQueue<>();
@@ -226,7 +227,7 @@ public class AdbStream implements Closeable {
         int maxData;
         try {
             maxData = mAdbConnection.getMaxData();
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | AdbPairingRequiredException e) {
             //noinspection UnnecessaryInitCause
             throw (IOException) new IOException().initCause(e);
         }

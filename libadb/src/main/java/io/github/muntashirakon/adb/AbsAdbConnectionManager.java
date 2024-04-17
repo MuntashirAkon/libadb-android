@@ -179,10 +179,12 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
      *                                          daemon has rejected the first authentication attempt, which indicates
      *                                          that the daemon has not saved the public key from a previous connection.
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     @WorkerThread
     @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
-    public boolean connectTls(@NonNull Context context, long timeoutMillis) throws IOException, InterruptedException {
+    public boolean connectTls(@NonNull Context context, long timeoutMillis)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         return autoConnect(context, AdbMdns.SERVICE_TYPE_TLS_CONNECT, timeoutMillis);
     }
 
@@ -199,10 +201,12 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
      *                                          daemon has rejected the first authentication attempt, which indicates
      *                                          that the daemon has not saved the public key from a previous connection.
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     @WorkerThread
     @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
-    public boolean connectTcp(@NonNull Context context, long timeoutMillis) throws IOException, InterruptedException {
+    public boolean connectTcp(@NonNull Context context, long timeoutMillis)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         return autoConnect(context, AdbMdns.SERVICE_TYPE_ADB, timeoutMillis);
     }
 
@@ -219,11 +223,12 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
      *                                          daemon has rejected the first authentication attempt, which indicates
      *                                          that the daemon has not saved the public key from a previous connection.
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     @WorkerThread
     @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
     public boolean autoConnect(@NonNull Context context, long timeoutMillis)
-            throws IOException, InterruptedException {
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         synchronized (mLock) {
             AtomicInteger atomicPort = new AtomicInteger(-1);
             AtomicReference<String> atomicHostAddress = new AtomicReference<>(null);
@@ -276,7 +281,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     @WorkerThread
     @RequiresApi(Build.VERSION_CODES.JELLY_BEAN)
     private boolean autoConnect(@NonNull Context context, @AdbMdns.ServiceType @NonNull String serviceType, long timeoutMillis)
-            throws IOException, InterruptedException {
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         synchronized (mLock) {
             AtomicInteger atomicPort = new AtomicInteger(-1);
             AtomicReference<String> atomicHostAddress = new AtomicReference<>(null);
@@ -327,9 +332,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws AdbAuthenticationFailedException If {@link #isThrowOnUnauthorised()} is set to {@code true}, and the ADB
      *                                          daemon has rejected the first authentication attempt, which indicates
      *                                          that the daemon has not saved the public key from a previous connection.
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     @WorkerThread
-    public boolean connect(int port) throws IOException, InterruptedException {
+    public boolean connect(int port) throws IOException, InterruptedException, AdbPairingRequiredException {
         synchronized (mLock) {
             if (isConnected()) {
                 return false;
@@ -356,9 +362,11 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      *                                          ADB daemon has rejected the first authentication attempt, which
      *                                          indicates that the daemon has not saved the public key from a previous
      *                                          connection.
+     * @throws AdbPairingRequiredException      If ADB lacks pairing
      */
     @WorkerThread
-    public boolean connect(@NonNull String host, int port) throws IOException, InterruptedException {
+    public boolean connect(@NonNull String host, int port)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
         synchronized (mLock) {
             if (isConnected()) {
                 return false;
@@ -402,7 +410,11 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     public AdbStream openStream(String destination) throws IOException, InterruptedException {
         synchronized (mLock) {
             if (mAdbConnection != null && mAdbConnection.isConnected()) {
-                return mAdbConnection.open(destination);
+                try {
+                    return mAdbConnection.open(destination);
+                } catch (AdbPairingRequiredException e) {
+                    throw new IllegalStateException(e);
+                }
             }
             throw new IOException("Not connected to ADB.");
         }
@@ -420,10 +432,15 @@ public abstract class AbsAdbConnectionManager implements Closeable {
      * @throws InterruptedException         If we are unable to wait for the connection to finish
      */
     @NonNull
-    public AdbStream openStream(@LocalServices.Services int service, @NonNull String... args) throws IOException, InterruptedException {
+    public AdbStream openStream(@LocalServices.Services int service, @NonNull String... args)
+            throws IOException, InterruptedException {
         synchronized (mLock) {
             if (mAdbConnection != null && mAdbConnection.isConnected()) {
-                return mAdbConnection.open(service, args);
+                try {
+                    return mAdbConnection.open(service, args);
+                } catch (AdbPairingRequiredException e) {
+                    throw new IllegalStateException(e);
+                }
             }
             throw new IOException("Not connected to ADB.");
         }
