@@ -6,14 +6,18 @@ plugins {
 }
 
 group = 'io.github.muntashirakon'
-version = '2.2.2'
+version = '3.0.0'
 
 android {
     compileSdk 34
+    namespace "io.github.muntashirakon.adb"
 
     defaultConfig {
         minSdk 1
         targetSdk 34
+        aarMetadata {
+            minCompileSdk = 1
+        }
     }
 
     buildTypes {
@@ -21,19 +25,26 @@ android {
             minifyEnabled false
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
+publishing {
+    publications {
+        release(MavenPublication) {
+            artifactId = 'libadb'
+            afterEvaluate {
                 from components.release
-                groupId = 'io.github.muntashirakon'
-                artifactId = 'adb'
             }
         }
     }

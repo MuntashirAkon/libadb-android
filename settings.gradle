@@ -1,3 +1,4 @@
 include ':libadb'
-rootProject.name = "libadb-android"
 include ':app'
+rootProject.name = "libadb-android"
+project(':libadb').name = 'libadb'

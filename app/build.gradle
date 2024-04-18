@@ -6,6 +6,7 @@ plugins {
 
 android {
     compileSdk 34
+    namespace "io.github.muntashirakon.adb.testapp"
 
     defaultConfig {
         applicationId "io.github.muntashirakon.adb.testapp"
