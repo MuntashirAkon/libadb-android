@@ -37,7 +37,7 @@ final class SslUtils {
         }
         try {
             Class<?> providerClass = Class.forName("org.conscrypt.OpenSSLProvider");
-            Provider openSslProvder = (Provider) providerClass.newInstance();
+            Provider openSslProvder = (Provider) providerClass.getDeclaredConstructor().newInstance();
             sslContext = SSLContext.getInstance("TLSv1.3", openSslProvder);
             customConscrypt = true;
         } catch (NoSuchAlgorithmException e) {

@@ -14,6 +14,7 @@ import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.engines.AESEngine;
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
 import org.bouncycastle.crypto.modes.GCMBlockCipher;
+import org.bouncycastle.crypto.modes.GCMModeCipher;
 import org.bouncycastle.crypto.params.AEADParameters;
 import org.bouncycastle.crypto.params.HKDFParameters;
 import org.bouncycastle.crypto.params.KeyParameter;
@@ -116,7 +117,7 @@ class PairingAuthCtx implements Destroyable {
     private byte[] encryptDecrypt(boolean forEncryption, @NonNull byte[] in, @NonNull byte[] iv) {
         if (mIsDestroyed) return null;
         AEADParameters spec = new AEADParameters(new KeyParameter(mSecretKey), mSecretKey.length * 8, iv);
-        GCMBlockCipher cipher = new GCMBlockCipher(new AESEngine());
+        GCMModeCipher cipher = GCMBlockCipher.newInstance(AESEngine.newInstance());
         cipher.init(forEncryption, spec);
         byte[] out = new byte[cipher.getOutputSize(in.length)];
         int newOffset = cipher.processBytes(in, 0, in.length, out, 0);

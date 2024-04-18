@@ -13,6 +13,8 @@ import androidx.annotation.RequiresApi;
 import androidx.annotation.StringDef;
 
 import java.io.IOException;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -38,6 +40,7 @@ public class AdbMdns {
             SERVICE_TYPE_TLS_PAIRING,
             SERVICE_TYPE_TLS_CONNECT,
     })
+    @Retention(RetentionPolicy.SOURCE)
     public @interface ServiceType {
     }
 
@@ -121,8 +124,8 @@ public class AdbMdns {
     }
 
     private boolean isPortAvailable(int port) {
-        try {
-            new ServerSocket().bind(new InetSocketAddress(AndroidUtils.getHostIpAddress(mContext), port), 1);
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(AndroidUtils.getHostIpAddress(mContext), port), 1);
             return false;
         } catch (IOException e) {
             return true;

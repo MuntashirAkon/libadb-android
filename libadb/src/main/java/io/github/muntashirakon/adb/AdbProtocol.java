@@ -128,6 +128,7 @@ final class AdbProtocol {
      */
     public static final int ADB_AUTH_RSAPUBLICKEY = 3;
 
+    @Retention(RetentionPolicy.SOURCE)
     @IntDef({ADB_AUTH_TOKEN, ADB_AUTH_SIGNATURE, ADB_AUTH_RSAPUBLICKEY})
     private @interface AuthType {
     }

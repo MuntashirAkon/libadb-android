@@ -130,7 +130,7 @@ public class LocalServices {
             BACKUP,
             RESTORE,
     })
-    @Retention(RetentionPolicy.CLASS)
+    @Retention(RetentionPolicy.SOURCE)
     public @interface Services {
     }
 
