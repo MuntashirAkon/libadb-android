@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "io.github.muntashirakon.adb.testapp"
         minSdk 21
-        targetSdk 33
+        targetSdk 34
         versionCode 7
         versionName "2.2.2"
     }
@@ -29,7 +29,7 @@ android {
 dependencies {
     implementation project(path: ':libadb')
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'com.google.android.material:material:1.11.0'
 
     // Library to generate X509Certificate. You can also use BouncyCastle for this.
     implementation 'com.github.MuntashirAkon:sun-security-android:1.1'

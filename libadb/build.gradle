@@ -9,11 +9,11 @@ group = 'io.github.muntashirakon'
 version = '2.2.2'
 
 android {
-    compileSdk 32
+    compileSdk 34
 
     defaultConfig {
         minSdk 1
-        targetSdk 32
+        targetSdk 34
     }
 
     buildTypes {
@@ -40,8 +40,8 @@ afterEvaluate {
 }
 
 dependencies {
-    implementation "androidx.annotation:annotation:1.5.0"
-    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    implementation "androidx.annotation:annotation:1.7.1"
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.78'
     implementation 'com.github.MuntashirAkon.spake2-java:android:2.0.0'
 
     testImplementation 'junit:junit:4.13.2'
