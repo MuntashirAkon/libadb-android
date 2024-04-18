@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.muntashirakon.adb.AbsAdbConnectionManager;
+import io.github.muntashirakon.adb.AdbPairingRequiredException;
 import io.github.muntashirakon.adb.AdbStream;
 import io.github.muntashirakon.adb.LocalServices;
 import io.github.muntashirakon.adb.android.AdbMdns;
@@ -33,6 +34,7 @@ public class MainViewModel extends AndroidViewModel {
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
     private final MutableLiveData<Boolean> connectAdb = new MutableLiveData<>();
     private final MutableLiveData<Boolean> pairAdb = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> askPairAdb = new MutableLiveData<>();
     private final MutableLiveData<CharSequence> commandOutput = new MutableLiveData<>();
     private final MutableLiveData<Integer> pairingPort = new MutableLiveData<>();
 
@@ -49,6 +51,10 @@ public class MainViewModel extends AndroidViewModel {
 
     public LiveData<Boolean> watchPairAdb() {
         return pairAdb;
+    }
+
+    public LiveData<Boolean> watchAskPairAdb() {
+        return askPairAdb;
     }
 
     public LiveData<CharSequence> watchCommandOutput() {
@@ -164,6 +170,9 @@ public class MainViewModel extends AndroidViewModel {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 try {
                     connected = manager.autoConnect(getApplication(), 5000);
+                } catch (AdbPairingRequiredException e) {
+                    askPairAdb.postValue(true);
+                    return;
                 } catch (Throwable th) {
                     th.printStackTrace();
                 }

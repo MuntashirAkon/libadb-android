@@ -78,6 +78,11 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, getString(R.string.pairing_failed), Toast.LENGTH_SHORT).show();
             }
         });
+        viewModel.watchAskPairAdb().observe(this, displayDialog -> {
+            if (displayDialog) {
+                pairAdb();
+            }
+        });
         viewModel.watchCommandOutput().observe(this, output -> {
             commandOutput.setText(output == null ? "" : output);
             commandOutput.post(() -> scrollView.scrollTo(0, commandOutput.getHeight()));
