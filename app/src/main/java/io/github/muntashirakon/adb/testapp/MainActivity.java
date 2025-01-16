@@ -2,8 +2,10 @@
 
 package io.github.muntashirakon.adb.testapp;
 
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Menu;
@@ -31,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private MenuItem connectAdbMenu;
     private MenuItem disconnectAdbMenu;
     private MenuItem pairAdbMenu;
+    private MenuItem developerModeMenu;
     private ScrollView scrollView;
 
     private AppCompatEditText commandInput;
@@ -113,15 +116,12 @@ public class MainActivity extends AppCompatActivity {
         connectAdbMenu = menu.findItem(R.id.action_connect);
         disconnectAdbMenu = menu.findItem(R.id.action_disconnect);
         pairAdbMenu = menu.findItem(R.id.action_pair);
+        developerModeMenu = menu.findItem(R.id.action_developer_mode);
         return super.onCreateOptionsMenu(menu);
     }
 
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
-        if (pairAdbMenu != null) {
-            pairAdbMenu.setEnabled(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
-            pairAdbMenu.setVisible(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
-        }
         checkMenus();
         return super.onPrepareOptionsMenu(menu);
     }
@@ -139,6 +139,12 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == R.id.action_pair) {
             pairAdb();
+            return true;
+        }
+        if (id == R.id.action_developer_mode) {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -160,6 +166,18 @@ public class MainActivity extends AppCompatActivity {
         if (disconnectAdbMenu != null) {
             disconnectAdbMenu.setEnabled(connected);
             disconnectAdbMenu.setVisible(connected);
+        }
+
+        boolean visible = !connected && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
+
+        if (pairAdbMenu != null) {
+            pairAdbMenu.setEnabled(visible);
+            pairAdbMenu.setVisible(visible);
+        }
+
+        if (developerModeMenu != null) {
+            developerModeMenu.setEnabled(visible);
+            developerModeMenu.setVisible(visible);
         }
     }
 
