@@ -6,15 +6,15 @@ plugins {
 }
 
 group = 'io.github.muntashirakon'
-version = '3.0.0'
+version = '3.1.0'
 
 android {
-    compileSdk 34
+    compileSdk 35
     namespace "io.github.muntashirakon.adb"
 
     defaultConfig {
         minSdk 1
-        targetSdk 34
+        targetSdk 35
         aarMetadata {
             minCompileSdk = 1
         }
@@ -51,8 +51,8 @@ publishing {
 }
 
 dependencies {
-    implementation "androidx.annotation:annotation:1.7.1"
-    implementation 'org.bouncycastle:bcprov-jdk15to18:1.78'
+    implementation "androidx.annotation:annotation:1.9.1"
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.81'
     implementation 'com.github.MuntashirAkon.spake2-java:android:2.0.0'
 
     testImplementation 'junit:junit:4.13.2'
