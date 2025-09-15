@@ -87,6 +87,10 @@ public class AdbMdns {
         }
     }
 
+    public boolean isRunning() {
+        return mRunning;
+    }
+
     private void onDiscoveryStart() {
         mRegistered = true;
     }
@@ -111,7 +115,7 @@ public class AdbMdns {
             for (NetworkInterface networkInterface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 for (InetAddress inetAddress : Collections.list(networkInterface.getInetAddresses())) {
                     String inetHost = inetAddress.getHostAddress();
-                    if (inetHost != null && inetHost.equals(serviceInfo.getHost().getHostAddress())
+                    if (Objects.equals(inetHost, serviceInfo.getHost().getHostAddress())
                             && isPortAvailable(serviceInfo.getPort())) {
                         mServiceName = serviceInfo.getServiceName();
                         mAdbDaemonDiscoveredListener.onPortChanged(serviceInfo.getHost(), serviceInfo.getPort());

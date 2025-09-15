@@ -21,7 +21,7 @@ repositories {
 // Add to dependencies section
 dependencies {
     // Add this library
-    implementation 'com.github.MuntashirAkon:libadb-android:1.0.1'
+    implementation 'com.github.MuntashirAkon:libadb-android:3.1.0'
     
     // Library to generate X509Certificate. You can also use BouncyCastle for
     // this. See example for use-case.
@@ -31,12 +31,12 @@ dependencies {
     // Android 9 (Pie) or later. It also requires additional steps. See
     // https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about
     // this.
-    // implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:2.0'
+    // implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
 
     // Use custom Conscrypt library. If you want to connect to a remote ADB
     // daemon instead of the device the app is currently running or do not want
     // to bypass hidden API, this is the recommended choice.
-    implementation 'org.conscrypt:conscrypt-android:2.5.2'
+    implementation 'org.conscrypt:conscrypt-android:2.5.3'
 }
 ```
 

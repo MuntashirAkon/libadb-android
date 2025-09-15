@@ -5,15 +5,15 @@ plugins {
 }
 
 android {
-    compileSdk 34
+    compileSdk 35
     namespace "io.github.muntashirakon.adb.testapp"
 
     defaultConfig {
         applicationId "io.github.muntashirakon.adb.testapp"
         minSdk 21
-        targetSdk 34
-        versionCode 7
-        versionName "2.2.2"
+        targetSdk 35
+        versionCode 8
+        versionName "3.1.0"
     }
 
     buildTypes {
@@ -29,8 +29,8 @@ android {
 
 dependencies {
     implementation project(path: ':libadb')
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'com.google.android.material:material:1.12.0'
 
     // Library to generate X509Certificate. You can also use BouncyCastle for this.
     implementation 'com.github.MuntashirAkon:sun-security-android:1.1'
@@ -38,8 +38,8 @@ dependencies {
     // Bypass hidden API if you want to use Android default conscrypt. It also requires additional steps.
     // See https://github.com/LSPosed/AndroidHiddenApiBypass to find out more about this.
     // Comment out the line below if you do not need this.
-    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
 
     // Uncomment the line below if you want to use the custom conscrypt.
-    // implementation 'org.conscrypt:conscrypt-android:2.5.2'
+    // implementation 'org.conscrypt:conscrypt-android:2.5.3'
 }
