@@ -16,4 +16,9 @@
         android:title="@string/pair_adb"
         android:icon="@drawable/ic_add_link"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_developer_mode"
+        android:title="@string/pair_adb"
+        android:icon="@drawable/ic_developer_mode"
+        app:showAsAction="always" />
 </menu>
