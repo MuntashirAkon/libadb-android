@@ -112,6 +112,10 @@ public class AdbStream implements Closeable {
         this.mRemoteId = remoteId;
     }
 
+    boolean isOpenAcknowledged() {
+        return mRemoteId != 0;
+    }
+
     /**
      * Called by the connection thread to indicate the stream is okay to send data.
      */

@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.interfaces.RSAPublicKey;
@@ -35,11 +36,8 @@ import javax.security.auth.DestroyFailedException;
 public class AdbConnection implements Closeable {
     public static final String TAG = AdbConnection.class.getSimpleName();
 
-    /**
-     * The underlying socket that this class uses to communicate with the target device.
-     */
     @NonNull
-    private final Socket mSocket;
+    private final AdbTransport mTransport;
 
     @NonNull
     private final String mHost;
@@ -54,14 +52,14 @@ public class AdbConnection implements Closeable {
     private int mLastLocalId;
 
     /**
-     * The input stream that this class uses to read from the socket.
+     * The input stream that this class uses to read from the transport.
      */
     @GuardedBy("lock")
     @NonNull
     private final InputStream mPlainInputStream;
 
     /**
-     * The output stream that this class uses to read from the socket.
+     * The output stream that this class uses to write to the transport.
      */
     @GuardedBy("lock")
     @NonNull
@@ -182,31 +180,66 @@ public class AdbConnection implements Closeable {
     @WorkerThread
     @NonNull
     static AdbConnection create(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
-        return new AdbConnection(host, port, keyPair, api);
+        return new AdbConnection(host, port, new SocketAdbTransport(host, port), keyPair, api);
+    }
+
+    /**
+     * Creates an ADB connection over an already connected duplex transport.
+     * The returned connection owns {@code transport} and closes it from
+     * {@link #close()}.
+     */
+    @WorkerThread
+    @NonNull
+    public static AdbConnection create(@NonNull AdbTransport transport, @NonNull PrivateKey privateKey,
+                                       @NonNull Certificate certificate)
+            throws IOException {
+        return create(transport, privateKey, certificate, Build.VERSION_CODES.BASE);
+    }
+
+    /**
+     * Creates an ADB connection over an already connected duplex transport.
+     */
+    @WorkerThread
+    @NonNull
+    public static AdbConnection create(@NonNull AdbTransport transport, @NonNull PrivateKey privateKey,
+                                       @NonNull Certificate certificate, int api)
+            throws IOException {
+        return new AdbConnection(
+                "transport",
+                0,
+                Objects.requireNonNull(transport),
+                new KeyPair(Objects.requireNonNull(privateKey), Objects.requireNonNull(certificate)),
+                api
+        );
     }
 
     /**
      * Internal constructor to initialize some internal state
      */
     @WorkerThread
-    private AdbConnection(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
+    private AdbConnection(@NonNull String host, int port, @NonNull AdbTransport transport,
+                          @NonNull KeyPair keyPair, int api) throws IOException {
         this.mHost = Objects.requireNonNull(host);
         this.mPort = port;
         this.mApi = api;
         this.mProtocolVersion = AdbProtocol.getProtocolVersion(mApi);
         this.mMaxData = AdbProtocol.getMaxData(api);
         this.mKeyPair = Objects.requireNonNull(keyPair);
+        this.mTransport = Objects.requireNonNull(transport);
+        InputStream plainInputStream;
+        OutputStream plainOutputStream;
         try {
-            this.mSocket = new Socket(host, port);
-        } catch (Throwable th) {
-            //noinspection UnnecessaryInitCause
-            throw (IOException) new IOException().initCause(th);
+            plainInputStream = Objects.requireNonNull(mTransport.getInputStream());
+            plainOutputStream = Objects.requireNonNull(mTransport.getOutputStream());
+        } catch (IOException | RuntimeException e) {
+            try {
+                mTransport.close();
+            } catch (IOException ignored) {
+            }
+            throw e;
         }
-        this.mPlainInputStream = mSocket.getInputStream();
-        this.mPlainOutputStream = mSocket.getOutputStream();
-
-        // Disable Nagle because we're sending tiny packets
-        mSocket.setTcpNoDelay(true);
+        this.mPlainInputStream = plainInputStream;
+        this.mPlainOutputStream = plainOutputStream;
 
         this.mOpenedStreams = new ConcurrentHashMap<>();
         this.mLastLocalId = 0;
@@ -236,7 +269,7 @@ public class AdbConnection implements Closeable {
             loop:
             while (!mConnectionThread.isInterrupted()) {
                 try {
-                    // Read and parse a message off the socket's input stream
+                    // Read and parse a message from the transport.
                     AdbProtocol.Message msg = AdbProtocol.Message.parse(getInputStream(), mProtocolVersion, mMaxData);
 
                     switch (msg.command) {
@@ -278,12 +311,16 @@ public class AdbConnection implements Closeable {
                             break;
                         }
                         case AdbProtocol.A_STLS: {
+                            if (!(mTransport instanceof SocketAdbTransport)) {
+                                throw new IOException("ADB TLS upgrade requires a socket transport.");
+                            }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
                                 sendPacket(AdbProtocol.generateStls());
 
                                 SSLContext sslContext = SslUtils.getSslContext(mKeyPair);
+                                Socket socket = ((SocketAdbTransport) mTransport).getSocket();
                                 SSLSocket tlsSocket = (SSLSocket) sslContext.getSocketFactory()
-                                        .createSocket(mSocket, mHost, mPort, true);
+                                        .createSocket(socket, mHost, mPort, true);
                                 tlsSocket.startHandshake();
                                 Log.d(TAG, "Handshake succeeded.");
 
@@ -409,10 +446,10 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * Whether the underlying socket is connected to an ADB daemon and is not in a closed state.
+     * Whether the underlying transport is open.
      */
     public boolean isConnected() {
-        return !mSocket.isClosed() && mSocket.isConnected();
+        return mTransport.isOpen();
     }
 
     /**
@@ -420,7 +457,7 @@ public class AdbConnection implements Closeable {
      * fails.
      *
      * @return {@code true} if the connection was established, or {@code false} if the connection timed out
-     * @throws IOException                 If the socket fails while connecting
+     * @throws IOException                 If the transport fails while connecting
      * @throws InterruptedException        If timeout has reached
      * @throws AdbPairingRequiredException If ADB lacks pairing
      */
@@ -436,7 +473,7 @@ public class AdbConnection implements Closeable {
      * @param throwOnUnauthorised Whether to throw an {@link AdbAuthenticationFailedException}
      *                            if the peer rejects out first authentication attempt
      * @return {@code true} if the connection was established, or {@code false} if the connection timed out
-     * @throws IOException                      If the socket fails while connecting
+     * @throws IOException                      If the transport fails while connecting
      * @throws InterruptedException             If timeout has reached
      * @throws AdbAuthenticationFailedException If {@code throwOnUnauthorised} is {@code true} and the peer rejects the
      *                                          first authentication attempt, which indicates that the peer has not
@@ -483,6 +520,20 @@ public class AdbConnection implements Closeable {
     }
 
     /**
+     * Opens a service within a bounded timeout shared by connection and stream
+     * acknowledgement.
+     */
+    @NonNull
+    public AdbStream open(@LocalServices.Services int service, long timeout, @NonNull TimeUnit unit,
+                          @NonNull String... args)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
+        if (service < LocalServices.SERVICE_FIRST || service > LocalServices.SERVICE_LAST) {
+            throw new IllegalArgumentException("Invalid service: " + service);
+        }
+        return open(LocalServices.getDestination(service, args), timeout, unit);
+    }
+
+    /**
      * Opens an AdbStream object corresponding to the specified destination.
      * This routine will block until the connection completes.
      *
@@ -496,13 +547,32 @@ public class AdbConnection implements Closeable {
     @NonNull
     public AdbStream open(@NonNull String destination)
             throws IOException, InterruptedException, AdbPairingRequiredException {
-        int localId = ++mLastLocalId;
+        return open(destination, Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Opens a destination within a bounded timeout shared by connection and
+     * stream acknowledgement.
+     *
+     * @throws SocketTimeoutException If the timeout expires before the peer
+     *                                acknowledges the stream.
+     */
+    @NonNull
+    public AdbStream open(@NonNull String destination, long timeout, @NonNull TimeUnit unit)
+            throws IOException, InterruptedException, AdbPairingRequiredException {
+        final long deadlineNanos = deadlineNanos(timeout, Objects.requireNonNull(unit));
+        final int localId;
+        synchronized (this) {
+            localId = ++mLastLocalId;
+        }
 
         if (!mConnectAttempted) {
             throw new IllegalStateException("connect() must be called first");
         }
 
-        waitForConnection(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+        if (!waitForConnectionUntil(deadlineNanos)) {
+            throw new SocketTimeoutException("Timed out waiting for the ADB connection.");
+        }
 
         // Add this stream to this list of half-open streams
         AdbStream stream = new AdbStream(this, localId);
@@ -512,8 +582,20 @@ public class AdbConnection implements Closeable {
         sendPacket(AdbProtocol.generateOpen(localId, Objects.requireNonNull(destination)));
 
         // Wait for the connection thread to receive the OKAY
-        synchronized (stream) {
-            stream.wait();
+        try {
+            synchronized (stream) {
+                while (!stream.isOpenAcknowledged() && !stream.isClosed()) {
+                    long remainingNanos = remainingNanos(deadlineNanos);
+                    if (remainingNanos == 0) {
+                        closeHalfOpenStream(localId, stream);
+                        throw new SocketTimeoutException("Timed out waiting for the ADB stream to open.");
+                    }
+                    timedWait(stream, remainingNanos);
+                }
+            }
+        } catch (InterruptedException e) {
+            closeHalfOpenStream(localId, stream);
+            throw e;
         }
 
         // Check if the OPEN request was rejected
@@ -527,11 +609,19 @@ public class AdbConnection implements Closeable {
 
     private boolean waitForConnection(long timeout, @NonNull TimeUnit unit)
             throws InterruptedException, IOException, AdbPairingRequiredException {
+        return waitForConnectionUntil(deadlineNanos(timeout, Objects.requireNonNull(unit)));
+    }
+
+    private boolean waitForConnectionUntil(long deadlineNanos)
+            throws InterruptedException, IOException, AdbPairingRequiredException {
         synchronized (this) {
             // Block if a connection is pending, but not yet complete
-            long timeoutEndMillis = System.currentTimeMillis() + Objects.requireNonNull(unit).toMillis(timeout);
-            while (!mConnectionEstablished && mConnectAttempted && timeoutEndMillis - System.currentTimeMillis() > 0) {
-                wait(timeoutEndMillis - System.currentTimeMillis());
+            while (!mConnectionEstablished && mConnectAttempted) {
+                long remainingNanos = remainingNanos(deadlineNanos);
+                if (remainingNanos == 0) {
+                    return false;
+                }
+                timedWait(this, remainingNanos);
             }
 
             if (!mConnectionEstablished) {
@@ -549,6 +639,7 @@ public class AdbConnection implements Closeable {
                                 throw (AdbPairingRequiredException) (new AdbPairingRequiredException("ADB pairing is required.").initCause(connectionException));
                             }
                         }
+                        throw (IOException) new IOException("Connection failed").initCause(connectionException);
                     }
                     throw new IOException("Connection failed");
                 }
@@ -556,6 +647,42 @@ public class AdbConnection implements Closeable {
         }
 
         return true;
+    }
+
+    private void closeHalfOpenStream(int localId, @NonNull AdbStream stream) {
+        mOpenedStreams.remove(localId, stream);
+        try {
+            stream.close();
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static long deadlineNanos(long timeout, @NonNull TimeUnit unit) {
+        if (timeout < 0) {
+            throw new IllegalArgumentException("timeout < 0");
+        }
+        long now = System.nanoTime();
+        long duration = unit.toNanos(timeout);
+        if (duration == Long.MAX_VALUE || now > Long.MAX_VALUE - duration) {
+            return Long.MAX_VALUE;
+        }
+        return now + duration;
+    }
+
+    private static long remainingNanos(long deadlineNanos) {
+        if (deadlineNanos == Long.MAX_VALUE) {
+            return Long.MAX_VALUE;
+        }
+        return Math.max(0, deadlineNanos - System.nanoTime());
+    }
+
+    private static void timedWait(@NonNull Object monitor, long remainingNanos)
+            throws InterruptedException {
+        if (remainingNanos == Long.MAX_VALUE) {
+            monitor.wait();
+        } else {
+            TimeUnit.NANOSECONDS.timedWait(monitor, remainingNanos);
+        }
     }
 
     /**
@@ -573,14 +700,14 @@ public class AdbConnection implements Closeable {
     }
 
     /**
-     * This routine closes the Adb connection and underlying socket
+     * This routine closes the ADB connection and underlying transport.
      *
-     * @throws IOException if the socket fails to close
+     * @throws IOException if the transport fails to close
      */
     @Override
     public void close() throws IOException {
-        // Closing the socket will kick the connection thread
-        mSocket.close();
+        // Closing the transport must kick the connection thread.
+        mTransport.close();
 
         // Wait for the connection thread to die
         mConnectionThread.interrupt();
@@ -618,6 +745,7 @@ public class AdbConnection implements Closeable {
         private Certificate mCertificate;
         private KeyPair mKeyPair;
         private String mDeviceName;
+        private AdbTransport mTransport;
 
         public Builder() {
         }
@@ -640,6 +768,15 @@ public class AdbConnection implements Closeable {
          */
         public Builder setPort(int port) {
             this.mPort = port;
+            return this;
+        }
+
+        /**
+         * Use an already connected duplex transport instead of opening a TCP
+         * socket. The resulting connection owns and closes the transport.
+         */
+        public Builder setTransport(@NonNull AdbTransport transport) {
+            this.mTransport = Objects.requireNonNull(transport);
             return this;
         }
 
@@ -687,9 +824,9 @@ public class AdbConnection implements Closeable {
         }
 
         /**
-         * Creates a new {@link AdbConnection} associated with the socket and crypto object specified.
+         * Creates a new {@link AdbConnection} using the configured transport and keys.
          *
-         * @throws IOException If there was an error while establishing a socket connection
+         * @throws IOException If there was an error while initializing the transport
          */
         public AdbConnection build() throws IOException {
             if (mKeyPair == null) {
@@ -698,7 +835,12 @@ public class AdbConnection implements Closeable {
                 }
                 mKeyPair = new KeyPair(mPrivateKey, mCertificate);
             }
-            AdbConnection adbConnection = create(mHost, mPort, mKeyPair, mApi);
+            AdbConnection adbConnection;
+            if (mTransport != null) {
+                adbConnection = new AdbConnection("transport", 0, mTransport, mKeyPair, mApi);
+            } else {
+                adbConnection = create(mHost, mPort, mKeyPair, mApi);
+            }
             if (mDeviceName != null) {
                 adbConnection.setDeviceName(mDeviceName);
             }
@@ -710,16 +852,21 @@ public class AdbConnection implements Closeable {
          * attempt fails.
          *
          * @return The underlying {@link AdbConnection}
-         * @throws IOException                 If the socket fails while connecting
+         * @throws IOException                 If the transport fails while connecting
          * @throws InterruptedException        If timeout has reached
          * @throws AdbPairingRequiredException If ADB lacks pairing
          */
         public AdbConnection connect() throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
-            if (adbConnection.connect()) {
-                throw new IOException("Unable to establish a new connection.");
+            try {
+                if (!adbConnection.connect()) {
+                    throw new IOException("Unable to establish a new connection.");
+                }
+                return adbConnection;
+            } catch (IOException | InterruptedException | AdbPairingRequiredException | RuntimeException e) {
+                closeQuietly(adbConnection);
+                throw e;
             }
-            return adbConnection;
         }
 
         /**
@@ -730,7 +877,7 @@ public class AdbConnection implements Closeable {
          * @param throwOnUnauthorised Whether to throw an {@link AdbAuthenticationFailedException}
          *                            if the peer rejects out first authentication attempt
          * @return {@code true} if the connection was established, or {@code false} if the connection timed out
-         * @throws IOException                      If the socket fails while connecting
+         * @throws IOException                      If the transport fails while connecting
          * @throws InterruptedException             If timeout has reached
          * @throws AdbAuthenticationFailedException If {@code throwOnUnauthorised} is {@code true} and the peer rejects
          *                                          the first authentication attempt, which indicates that the peer has
@@ -740,10 +887,22 @@ public class AdbConnection implements Closeable {
         public AdbConnection connect(long timeout, @NonNull TimeUnit unit, boolean throwOnUnauthorised)
                 throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
-            if (adbConnection.connect(timeout, unit, throwOnUnauthorised)) {
-                throw new IOException("Unable to establish a new connection.");
+            try {
+                if (!adbConnection.connect(timeout, unit, throwOnUnauthorised)) {
+                    throw new IOException("Unable to establish a new connection.");
+                }
+                return adbConnection;
+            } catch (IOException | InterruptedException | AdbPairingRequiredException | RuntimeException e) {
+                closeQuietly(adbConnection);
+                throw e;
             }
-            return adbConnection;
+        }
+
+        private static void closeQuietly(@NonNull AdbConnection adbConnection) {
+            try {
+                adbConnection.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 }
