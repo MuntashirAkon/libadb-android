@@ -4,6 +4,7 @@ package io.github.muntashirakon.adb;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -34,6 +35,12 @@ public class AdbStream implements Closeable {
      * Indicates whether WRTE is currently allowed
      */
     private final AtomicBoolean mWriteReady;
+
+    /**
+     * Whether the remote peer has ever acknowledged this stream's OPEN. Unlike {@link #mWriteReady} this is never
+     * consumed, so it stays a reliable answer to "was the stream actually opened?".
+     */
+    private volatile boolean mOpenAcknowledged;
 
     /**
      * A queue of data from the target's WRTE packets
@@ -117,6 +124,17 @@ public class AdbStream implements Closeable {
      */
     void readyForWrite() {
         mWriteReady.set(true);
+        mOpenAcknowledged = true;
+    }
+
+    /**
+     * Whether the remote peer has acknowledged the OPEN for this stream with an OKAY.
+     *
+     * <p>Used by {@link AdbConnection#open(String)} to tell a genuine acknowledgement apart from a timeout, since
+     * {@link Object#wait(long)} cannot report which of the two woke it.
+     */
+    boolean isOpenAcknowledged() {
+        return mOpenAcknowledged;
     }
 
     /**
@@ -204,10 +222,17 @@ public class AdbStream implements Closeable {
      */
     public void write(byte[] bytes, int offset, int length) throws IOException {
         synchronized (this) {
-            // Make sure we're ready for a WRTE
-            while (!mIsClosed && !mWriteReady.compareAndSet(true, false)) {
+            // Make sure we're ready for a WRTE. Bounded: the peer owes us an OKAY promptly, and an unbounded wait here
+            // meant a peer that silently went away parked the writer forever while holding this stream's monitor.
+            boolean ready = false;
+            long deadline = System.currentTimeMillis() + mAdbConnection.getResponseTimeout();
+            while (!mIsClosed && !(ready = mWriteReady.compareAndSet(true, false))) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    break;
+                }
                 try {
-                    wait();
+                    wait(remaining);
                 } catch (InterruptedException e) {
                     //noinspection UnnecessaryInitCause
                     throw (IOException) new IOException().initCause(e);
@@ -216,6 +241,10 @@ public class AdbStream implements Closeable {
 
             if (mIsClosed) {
                 throw new IOException("Stream closed");
+            }
+
+            if (!ready) {
+                throw new SocketTimeoutException("Timed out waiting for the remote peer to accept data.");
             }
         }
         // Split and send data as WRTE packet
