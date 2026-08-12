@@ -298,7 +298,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setConnectTimeout(getConnectTimeout())
                     .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -343,7 +343,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setConnectTimeout(getConnectTimeout())
                     .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -373,7 +373,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setConnectTimeout(getConnectTimeout())
                     .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -407,7 +407,7 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setConnectTimeout(getConnectTimeout())
                     .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 

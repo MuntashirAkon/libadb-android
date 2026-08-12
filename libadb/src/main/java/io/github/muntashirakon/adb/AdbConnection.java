@@ -591,8 +591,15 @@ public class AdbConnection implements Closeable {
     private boolean waitForConnection(long timeout, @NonNull TimeUnit unit)
             throws InterruptedException, IOException, AdbPairingRequiredException {
         synchronized (this) {
-            // Block if a connection is pending, but not yet complete
-            long timeoutEndMillis = System.currentTimeMillis() + Objects.requireNonNull(unit).toMillis(timeout);
+            // Block if a connection is pending, but not yet complete.
+            //
+            // The deadline is computed with saturating arithmetic: a large timeout - Long.MAX_VALUE is the
+            // AbsAdbConnectionManager default, meaning "effectively forever" - used to overflow into a negative
+            // deadline here, so the loop was skipped entirely and the call reported failure without ever waiting
+            // for CNXN.
+            long timeoutMillis = Objects.requireNonNull(unit).toMillis(timeout);
+            long now = System.currentTimeMillis();
+            long timeoutEndMillis = timeoutMillis > Long.MAX_VALUE - now ? Long.MAX_VALUE : now + timeoutMillis;
             while (!mConnectionEstablished && mConnectAttempted && timeoutEndMillis - System.currentTimeMillis() > 0) {
                 wait(timeoutEndMillis - System.currentTimeMillis());
             }
