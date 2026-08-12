@@ -15,6 +15,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -127,8 +128,12 @@ public final class PairingConnectionCtx implements Closeable {
             socket = sslServerSocket.accept();
             // TODO: Write automated test scripts after removing Conscrypt dependency.
         } else { // role == Role.Client
-            socket = new Socket(mHost, mPort);
+            // Bounded connect, and a read timeout so the readFully() calls in the pairing exchange below cannot park
+            // forever on a peer that has silently gone away.
+            socket = new Socket();
+            socket.connect(new InetSocketAddress(mHost, mPort), (int) AdbConnection.DEFAULT_CONNECT_TIMEOUT_MILLIS);
         }
+        socket.setSoTimeout((int) AdbConnection.DEFAULT_RESPONSE_TIMEOUT_MILLIS);
         socket.setTcpNoDelay(true);
 
         // We use custom SSLContext to allow any SSL certificates
