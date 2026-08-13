@@ -91,6 +91,11 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     /**
      * Set time to wait for the connection to be made.
      *
+     * <p>This governs the whole set-up path, not only the CNXN handshake: the TCP connect, and the OKAY the peer owes
+     * in reply to an OPEN or a WRTE. It is capped at {@link Integer#MAX_VALUE} milliseconds because that is what
+     * {@link java.net.Socket} accepts; {@link Long#MAX_VALUE} - the default - therefore means "effectively forever"
+     * rather than literally forever.
+     *
      * @param timeout Timeout value
      * @param unit    Timeout unit
      */
@@ -98,6 +103,23 @@ public abstract class AbsAdbConnectionManager implements Closeable {
     public void setTimeout(long timeout, TimeUnit unit) {
         mTimeout = timeout;
         mTimeoutUnit = unit;
+    }
+
+    /**
+     * The connect/response timeout in milliseconds, clamped to what {@link java.net.Socket} accepts.
+     *
+     * <p>When no timeout has been set, this falls back to {@link AdbConnection#DEFAULT_CONNECT_TIMEOUT_MILLIS} rather
+     * than to the {@link Long#MAX_VALUE} default of {@link #setTimeout(long, TimeUnit)}: a caller that never asked for
+     * a timeout wants a sensible one, not an unbounded wait on a peer that may never answer.
+     */
+    private long getConnectTimeout() {
+        if (mTimeout == Long.MAX_VALUE) {
+            return AdbConnection.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+        }
+
+        long millis = mTimeoutUnit.toMillis(mTimeout);
+
+        return millis <= 0 || millis > Integer.MAX_VALUE ? Integer.MAX_VALUE : millis;
     }
 
     /**
@@ -273,8 +295,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
                     .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .setConnectTimeout(getConnectTimeout())
+                    .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -316,8 +340,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
                     .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .setConnectTimeout(getConnectTimeout())
+                    .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -344,8 +370,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
                     .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .setConnectTimeout(getConnectTimeout())
+                    .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 
@@ -376,8 +404,10 @@ public abstract class AbsAdbConnectionManager implements Closeable {
                     .setApi(mApi)
                     .setKeyPair(getAdbKeyPair())
                     .setDeviceName(Objects.requireNonNull(getDeviceName()))
+                    .setConnectTimeout(getConnectTimeout())
+                    .setResponseTimeout(getConnectTimeout())
                     .build();
-            return mAdbConnection.connect(mTimeout, mTimeoutUnit, mThrowOnUnauthorised);
+            return mAdbConnection.connect(getConnectTimeout(), TimeUnit.MILLISECONDS, mThrowOnUnauthorised);
         }
     }
 

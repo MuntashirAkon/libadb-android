@@ -16,7 +16,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.interfaces.RSAPublicKey;
@@ -145,6 +147,30 @@ public class AdbConnection implements Closeable {
     private final Object mLock = new Object();
 
     /**
+     * Default time to wait for the TCP connection to the ADB daemon to be established.
+     */
+    public static final long DEFAULT_CONNECT_TIMEOUT_MILLIS = 30_000L;
+
+    /**
+     * Default read timeout applied to the socket. This does <em>not</em> bound how long a connection may stay idle:
+     * an ADB link is legitimately silent for long stretches (a shell session producing no output), so the connection
+     * thread simply resumes waiting. Its purpose is to stop the thread from parking forever inside a kernel read, so
+     * that {@link #close()} and interruption take effect promptly.
+     */
+    public static final long DEFAULT_SOCKET_TIMEOUT_MILLIS = 30_000L;
+
+    /**
+     * Default time to wait for a response the peer owes us promptly - the OKAY acknowledging an OPEN or a WRTE, and
+     * the connection thread winding down in {@link #close()}.
+     */
+    public static final long DEFAULT_RESPONSE_TIMEOUT_MILLIS = 30_000L;
+
+    /**
+     * @see #DEFAULT_RESPONSE_TIMEOUT_MILLIS
+     */
+    private final long mResponseTimeout;
+
+    /**
      * Creates a AdbConnection object associated with the socket and crypto object specified.
      *
      * @return A new AdbConnection object.
@@ -182,22 +208,32 @@ public class AdbConnection implements Closeable {
     @WorkerThread
     @NonNull
     static AdbConnection create(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
-        return new AdbConnection(host, port, keyPair, api);
+        return new AdbConnection(host, port, keyPair, api, DEFAULT_CONNECT_TIMEOUT_MILLIS,
+                DEFAULT_SOCKET_TIMEOUT_MILLIS, DEFAULT_RESPONSE_TIMEOUT_MILLIS);
     }
 
     /**
      * Internal constructor to initialize some internal state
      */
     @WorkerThread
-    private AdbConnection(@NonNull String host, int port, @NonNull KeyPair keyPair, int api) throws IOException {
+    private AdbConnection(@NonNull String host, int port, @NonNull KeyPair keyPair, int api, long connectTimeout,
+                          long socketTimeout, long responseTimeout) throws IOException {
         this.mHost = Objects.requireNonNull(host);
         this.mPort = port;
         this.mApi = api;
         this.mProtocolVersion = AdbProtocol.getProtocolVersion(mApi);
         this.mMaxData = AdbProtocol.getMaxData(api);
         this.mKeyPair = Objects.requireNonNull(keyPair);
+        this.mResponseTimeout = responseTimeout;
         try {
-            this.mSocket = new Socket(host, port);
+            // Connect explicitly rather than via new Socket(host, port), which offers no way to bound the connect.
+            // A peer that has silently gone away - the normal outcome of a Wi-Fi drop, which delivers no FIN - would
+            // otherwise block here for the OS default, minutes at a time, with no way to cancel.
+            this.mSocket = new Socket();
+            mSocket.connect(new InetSocketAddress(host, port), (int) connectTimeout);
+            // Not a limit on how long the connection may stay idle; see DEFAULT_SOCKET_TIMEOUT_MILLIS.
+            mSocket.setSoTimeout((int) socketTimeout);
+            mSocket.setKeepAlive(true);
         } catch (Throwable th) {
             //noinspection UnnecessaryInitCause
             throw (IOException) new IOException().initCause(th);
@@ -211,6 +247,15 @@ public class AdbConnection implements Closeable {
         this.mOpenedStreams = new ConcurrentHashMap<>();
         this.mLastLocalId = 0;
         this.mConnectionThread = createConnectionThread();
+    }
+
+    /**
+     * Time to wait for a response the peer owes us promptly.
+     *
+     * @see #DEFAULT_RESPONSE_TIMEOUT_MILLIS
+     */
+    long getResponseTimeout() {
+        return mResponseTimeout;
     }
 
     @GuardedBy("lock")
@@ -340,6 +385,13 @@ public class AdbConnection implements Closeable {
                             // Unrecognized packet, just drop it
                             break;
                     }
+                } catch (SocketTimeoutException e) {
+                    // Nothing arrived within the socket timeout. That is not an error - an ADB link is legitimately
+                    // silent for long stretches - and Message.parse() guarantees this can only be thrown at a message
+                    // boundary, so resuming cannot desynchronise the stream. The point of the timeout is only that we
+                    // return here periodically, so close() and interrupt() take effect instead of being ignored while
+                    // the thread sits in a kernel read that a dead peer will never satisfy.
+                    continue;
                 } catch (Exception e) {
                     mConnectionException = e;
                     e.printStackTrace();
@@ -395,7 +447,7 @@ public class AdbConnection implements Closeable {
             throw new IllegalStateException("connect() must be called first");
         }
 
-        waitForConnection(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+        waitForConnection(mResponseTimeout, TimeUnit.MILLISECONDS);
 
         return mMaxData;
     }
@@ -502,7 +554,7 @@ public class AdbConnection implements Closeable {
             throw new IllegalStateException("connect() must be called first");
         }
 
-        waitForConnection(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+        waitForConnection(mResponseTimeout, TimeUnit.MILLISECONDS);
 
         // Add this stream to this list of half-open streams
         AdbStream stream = new AdbStream(this, localId);
@@ -511,9 +563,15 @@ public class AdbConnection implements Closeable {
         // Send OPEN
         sendPacket(AdbProtocol.generateOpen(localId, Objects.requireNonNull(destination)));
 
-        // Wait for the connection thread to receive the OKAY
+        // Wait for the connection thread to receive the OKAY. Bounded: an OKAY is owed promptly, and waiting for one
+        // that never comes used to park here forever while holding the caller's lock, leaving no way to recover.
         synchronized (stream) {
-            stream.wait();
+            long deadline = System.currentTimeMillis() + mResponseTimeout;
+            long remaining;
+            while (!stream.isOpenAcknowledged() && !stream.isClosed()
+                    && (remaining = deadline - System.currentTimeMillis()) > 0) {
+                stream.wait(remaining);
+            }
         }
 
         // Check if the OPEN request was rejected
@@ -522,14 +580,26 @@ public class AdbConnection implements Closeable {
             throw new ConnectException("Stream open actively rejected by remote peer.");
         }
 
+        if (!stream.isOpenAcknowledged()) {
+            mOpenedStreams.remove(localId);
+            throw new SocketTimeoutException("Timed out waiting for the remote peer to open the stream.");
+        }
+
         return stream;
     }
 
     private boolean waitForConnection(long timeout, @NonNull TimeUnit unit)
             throws InterruptedException, IOException, AdbPairingRequiredException {
         synchronized (this) {
-            // Block if a connection is pending, but not yet complete
-            long timeoutEndMillis = System.currentTimeMillis() + Objects.requireNonNull(unit).toMillis(timeout);
+            // Block if a connection is pending, but not yet complete.
+            //
+            // The deadline is computed with saturating arithmetic: a large timeout - Long.MAX_VALUE is the
+            // AbsAdbConnectionManager default, meaning "effectively forever" - used to overflow into a negative
+            // deadline here, so the loop was skipped entirely and the call reported failure without ever waiting
+            // for CNXN.
+            long timeoutMillis = Objects.requireNonNull(unit).toMillis(timeout);
+            long now = System.currentTimeMillis();
+            long timeoutEndMillis = timeoutMillis > Long.MAX_VALUE - now ? Long.MAX_VALUE : now + timeoutMillis;
             while (!mConnectionEstablished && mConnectAttempted && timeoutEndMillis - System.currentTimeMillis() > 0) {
                 wait(timeoutEndMillis - System.currentTimeMillis());
             }
@@ -582,10 +652,11 @@ public class AdbConnection implements Closeable {
         // Closing the socket will kick the connection thread
         mSocket.close();
 
-        // Wait for the connection thread to die
+        // Wait for the connection thread to die. Bounded, so that a connection thread which somehow fails to notice
+        // the closed socket cannot hold up close() - and therefore disconnect() - indefinitely.
         mConnectionThread.interrupt();
         try {
-            mConnectionThread.join();
+            mConnectionThread.join(mResponseTimeout);
         } catch (InterruptedException ignored) {
         }
 
@@ -618,6 +689,9 @@ public class AdbConnection implements Closeable {
         private Certificate mCertificate;
         private KeyPair mKeyPair;
         private String mDeviceName;
+        private long mConnectTimeout = DEFAULT_CONNECT_TIMEOUT_MILLIS;
+        private long mSocketTimeout = DEFAULT_SOCKET_TIMEOUT_MILLIS;
+        private long mResponseTimeout = DEFAULT_RESPONSE_TIMEOUT_MILLIS;
 
         public Builder() {
         }
@@ -666,6 +740,37 @@ public class AdbConnection implements Closeable {
         }
 
         /**
+         * Set how long to wait for the TCP connection to the ADB daemon to be established.
+         *
+         * @param connectTimeoutMillis Timeout in milliseconds, default {@link #DEFAULT_CONNECT_TIMEOUT_MILLIS}.
+         */
+        public Builder setConnectTimeout(long connectTimeoutMillis) {
+            this.mConnectTimeout = connectTimeoutMillis;
+            return this;
+        }
+
+        /**
+         * Set the socket read timeout. This does not limit how long the connection may stay idle.
+         *
+         * @param socketTimeoutMillis Timeout in milliseconds, default {@link #DEFAULT_SOCKET_TIMEOUT_MILLIS}.
+         * @see #DEFAULT_SOCKET_TIMEOUT_MILLIS
+         */
+        public Builder setSocketTimeout(long socketTimeoutMillis) {
+            this.mSocketTimeout = socketTimeoutMillis;
+            return this;
+        }
+
+        /**
+         * Set how long to wait for a response the peer owes us promptly - the OKAY acknowledging an OPEN or a WRTE.
+         *
+         * @param responseTimeoutMillis Timeout in milliseconds, default {@link #DEFAULT_RESPONSE_TIMEOUT_MILLIS}.
+         */
+        public Builder setResponseTimeout(long responseTimeoutMillis) {
+            this.mResponseTimeout = responseTimeoutMillis;
+            return this;
+        }
+
+        /**
          * Set generated/stored private key.
          */
         public Builder setPrivateKey(PrivateKey privateKey) {
@@ -698,7 +803,8 @@ public class AdbConnection implements Closeable {
                 }
                 mKeyPair = new KeyPair(mPrivateKey, mCertificate);
             }
-            AdbConnection adbConnection = create(mHost, mPort, mKeyPair, mApi);
+            AdbConnection adbConnection = new AdbConnection(mHost, mPort, mKeyPair, mApi, mConnectTimeout,
+                    mSocketTimeout, mResponseTimeout);
             if (mDeviceName != null) {
                 adbConnection.setDeviceName(mDeviceName);
             }

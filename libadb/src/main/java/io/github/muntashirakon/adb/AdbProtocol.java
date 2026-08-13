@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.StreamCorruptedException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -382,8 +383,15 @@ final class AdbProtocol {
          * <p>
          * <b>Note:</b> If data is corrupted, the connection has to be closed immediately to avoid inconsistencies.
          *
+         * <p>If the underlying socket has a read timeout set, a {@link SocketTimeoutException} is only ever thrown
+         * at a message boundary, i.e. before any byte of a message has been consumed. Once the first byte is in, the
+         * remainder of that message is awaited regardless of the timeout, because abandoning it half-read would
+         * desynchronise the stream. Callers may therefore treat a {@link SocketTimeoutException} from this method as
+         * "nothing arrived yet" and safely call it again.
+         *
          * @param in InputStream object to read data from
          * @return An AdbMessage object represented the message read
+         * @throws SocketTimeoutException   If nothing at all was received before the socket timeout elapsed.
          * @throws IOException              If the stream fails while reading.
          * @throws StreamCorruptedException If data is corrupted.
          */
@@ -394,7 +402,17 @@ final class AdbProtocol {
             // Read header
             int dataRead = 0;
             do {
-                int bytesRead = in.read(header.array(), dataRead, ADB_HEADER_LENGTH - dataRead);
+                int bytesRead;
+                try {
+                    bytesRead = in.read(header.array(), dataRead, ADB_HEADER_LENGTH - dataRead);
+                } catch (SocketTimeoutException e) {
+                    if (dataRead == 0) {
+                        // Message boundary: nothing consumed, so it is safe to let the caller retry.
+                        throw e;
+                    }
+                    // Already committed to this message, keep waiting for the rest of the header.
+                    continue;
+                }
                 if (bytesRead < 0) {
                     throw new IOException("Stream closed");
                 } else dataRead += bytesRead;
@@ -424,7 +442,13 @@ final class AdbProtocol {
             msg.payload = new byte[msg.dataLength];
             dataRead = 0;
             do {
-                int bytesRead = in.read(msg.payload, dataRead, msg.dataLength - dataRead);
+                int bytesRead;
+                try {
+                    bytesRead = in.read(msg.payload, dataRead, msg.dataLength - dataRead);
+                } catch (SocketTimeoutException e) {
+                    // The header is already consumed, so this message must be completed - see parse()'s note above.
+                    continue;
+                }
                 if (bytesRead < 0) {
                     throw new IOException("Stream closed");
                 } else dataRead += bytesRead;
