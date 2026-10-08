@@ -55,6 +55,8 @@ public class AdbStream implements Closeable {
      */
     private volatile boolean mPendingClose;
 
+    private volatile boolean mClosedByPeer;
+
     /**
      * Creates a new AdbStream object on the specified AdbConnection
      * with the given local ID.
@@ -124,6 +126,10 @@ public class AdbStream implements Closeable {
      */
     void notifyClose(boolean closedByPeer) {
         // We don't call close() because it sends another CLSE
+        if (closedByPeer) {
+            // A close from the peer is the normal end of the stream: readers get EOF, not an error
+            mClosedByPeer = true;
+        }
         if (closedByPeer && !mReadQueue.isEmpty()) {
             // The remote peer closed the stream, but we haven't finished reading the remaining data
             mPendingClose = true;
@@ -153,8 +159,9 @@ public class AdbStream implements Closeable {
         // Buffer has no data, grab from the queue
         synchronized (mReadQueue) {
             byte[] data;
-            // Wait for the connection to close or data to be received
-            while ((data = mReadQueue.poll()) == null && !mIsClosed) {
+            // Wait for the connection to close or data to be received. A pending close means the
+            // peer has nothing more to send: don't wait for data that will never come.
+            while ((data = mReadQueue.poll()) == null && !mIsClosed && !mPendingClose) {
                 try {
                     mReadQueue.wait();
                 } catch (InterruptedException e) {
@@ -172,13 +179,14 @@ public class AdbStream implements Closeable {
                 }
             }
 
-            if (mIsClosed) {
-                throw new IOException("Stream closed.");
-            }
-
             if (mPendingClose && mReadQueue.isEmpty()) {
                 // The peer closed the stream, and we've finished reading the stream data, so this stream is finished
                 mIsClosed = true;
+            }
+
+            if (mIsClosed && !mClosedByPeer) {
+                // Closed on our side (or the connection was torn down): reading further is an error
+                throw new IOException("Stream closed.");
             }
         }
 
