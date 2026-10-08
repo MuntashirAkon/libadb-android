@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -34,6 +35,12 @@ import javax.security.auth.DestroyFailedException;
 // Copyright 2013 Cameron Gutman
 public class AdbConnection implements Closeable {
     public static final String TAG = AdbConnection.class.getSimpleName();
+
+    /** How long {@link #open(String)} waits for the peer to accept or refuse a stream. */
+    static long sOpenTimeoutMillis = 30_000;
+
+    /** How long establishing the TCP connection to the ADB daemon may take. */
+    static final int CONNECT_TIMEOUT_MILLIS = 10_000;
 
     /**
      * The underlying socket that this class uses to communicate with the target device.
@@ -197,7 +204,9 @@ public class AdbConnection implements Closeable {
         this.mMaxData = AdbProtocol.getMaxData(api);
         this.mKeyPair = Objects.requireNonNull(keyPair);
         try {
-            this.mSocket = new Socket(host, port);
+            // A host that doesn't answer must not block the caller forever
+            this.mSocket = new Socket();
+            this.mSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MILLIS);
         } catch (Throwable th) {
             //noinspection UnnecessaryInitCause
             throw (IOException) new IOException().initCause(th);
@@ -511,9 +520,12 @@ public class AdbConnection implements Closeable {
         // Send OPEN
         sendPacket(AdbProtocol.generateOpen(localId, Objects.requireNonNull(destination)));
 
-        // Wait for the connection thread to receive the OKAY
-        synchronized (stream) {
-            stream.wait();
+        // Wait for the connection thread to receive the OKAY (or CLSE)
+        try {
+            awaitOpenAnswer(stream, sOpenTimeoutMillis);
+        } catch (IOException e) {
+            mOpenedStreams.remove(localId);
+            throw e;
         }
 
         // Check if the OPEN request was rejected
@@ -523,6 +535,26 @@ public class AdbConnection implements Closeable {
         }
 
         return stream;
+    }
+
+    /**
+     * Waits until the peer has accepted (OKAY) or refused (CLSE) the stream. The answer may arrive
+     * before the caller gets here, so this waits on the stream's state rather than on a notification
+     * that may already be gone, and gives up after {@code timeoutMillis} so that a peer that never
+     * answers cannot block the caller forever.
+     */
+    static void awaitOpenAnswer(@NonNull AdbStream stream, long timeoutMillis)
+            throws IOException, InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        synchronized (stream) {
+            while (!stream.isOpened() && !stream.isClosed()) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    throw new IOException("Stream open timed out: no answer from the remote peer.");
+                }
+                stream.wait(remaining);
+            }
+        }
     }
 
     private boolean waitForConnection(long timeout, @NonNull TimeUnit unit)
