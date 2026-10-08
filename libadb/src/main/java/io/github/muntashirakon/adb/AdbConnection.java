@@ -716,7 +716,8 @@ public class AdbConnection implements Closeable {
          */
         public AdbConnection connect() throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
-            if (adbConnection.connect()) {
+            if (!adbConnection.connect()) {
+                adbConnection.close();
                 throw new IOException("Unable to establish a new connection.");
             }
             return adbConnection;
@@ -740,7 +741,8 @@ public class AdbConnection implements Closeable {
         public AdbConnection connect(long timeout, @NonNull TimeUnit unit, boolean throwOnUnauthorised)
                 throws IOException, InterruptedException, AdbPairingRequiredException {
             AdbConnection adbConnection = build();
-            if (adbConnection.connect(timeout, unit, throwOnUnauthorised)) {
+            if (!adbConnection.connect(timeout, unit, throwOnUnauthorised)) {
+                adbConnection.close();
                 throw new IOException("Unable to establish a new connection.");
             }
             return adbConnection;
