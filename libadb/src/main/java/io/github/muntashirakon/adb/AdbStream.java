@@ -113,6 +113,14 @@ public class AdbStream implements Closeable {
     }
 
     /**
+     * Whether the peer has acknowledged the OPEN of this stream (its first OKAY carries the remote id,
+     * which is never 0).
+     */
+    boolean isOpened() {
+        return mRemoteId != 0;
+    }
+
+    /**
      * Called by the connection thread to indicate the stream is okay to send data.
      */
     void readyForWrite() {

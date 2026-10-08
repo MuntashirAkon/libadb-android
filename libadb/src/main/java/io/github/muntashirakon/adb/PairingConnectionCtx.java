@@ -15,6 +15,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -37,6 +38,9 @@ import javax.net.ssl.SSLSocket;
 @RequiresApi(Build.VERSION_CODES.GINGERBREAD)
 public final class PairingConnectionCtx implements Closeable {
     public static final String TAG = PairingConnectionCtx.class.getSimpleName();
+
+    private static final int CONNECT_TIMEOUT_MILLIS = 10_000;
+    private static final int PAIRING_TIMEOUT_MILLIS = 30_000;
 
     public static final String EXPORTED_KEY_LABEL = "adb-label\u0000";
     public static final int EXPORT_KEY_SIZE = 64;
@@ -127,9 +131,12 @@ public final class PairingConnectionCtx implements Closeable {
             socket = sslServerSocket.accept();
             // TODO: Write automated test scripts after removing Conscrypt dependency.
         } else { // role == Role.Client
-            socket = new Socket(mHost, mPort);
+            socket = new Socket();
+            socket.connect(new InetSocketAddress(mHost, mPort), CONNECT_TIMEOUT_MILLIS);
         }
         socket.setTcpNoDelay(true);
+        // Pairing is a short exchange: a peer that stops answering must not block forever
+        socket.setSoTimeout(PAIRING_TIMEOUT_MILLIS);
 
         // We use custom SSLContext to allow any SSL certificates
         SSLSocket sslSocket = (SSLSocket) mSslContext.getSocketFactory().createSocket(socket, mHost, mPort, true);
